@@ -459,6 +459,9 @@ let sectorModalFunds = [];
 let sectorModalSector = '';
 let sectorModalSort = {key:'total',dir:-1};
 let selectedDate = null;
+let recordsCache = {};
+let availableDates = [];
+let dateCounts = {};
 
 // ============================================================
 //  GLOBAL FILTERS
@@ -750,6 +753,14 @@ async function handleFiles(files){
     document.getElementById('dingtouCount').textContent = allRecords.filter(r => r.operation === '定').length;
     document.getElementById('uncategorizedCount').textContent = allRecords.filter(r => r.sector === '未分类').length;
     dashboard.style.display = 'block';
+    // Update availableDates and cache from imported data
+    if(supabaseConnected){
+      await fetchAvailableDates();
+      // Rebuild cache from all in-memory records (groups by date)
+      const byDate = {};
+      allRecords.forEach(r => { if(r.date){ if(!byDate[r.date]) byDate[r.date]=[]; byDate[r.date].push(r); }});
+      Object.keys(byDate).forEach(d => { recordsCache[d] = byDate[d]; });
+    }
     // Reset selectedDate so rebuildAvailableDates picks the latest
     selectedDate = null;
     renderAll();
@@ -1360,12 +1371,10 @@ let calYear = 2026;
 let calMonth = 4; // 0-indexed
 
 function rebuildAvailableDates(){
-  const dates = [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort();
-  // Default to latest date if no date is selected yet
+  const dates = availableDates.length > 0 ? availableDates : [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort();
   if(dates.length > 0 && selectedDate === null){
     selectedDate = dates[dates.length - 1];
   }
-  // Set calendar to selected date's month
   if(selectedDate){
     const d = new Date(selectedDate + 'T00:00:00');
     calYear = d.getFullYear();
@@ -1386,15 +1395,13 @@ function renderDatePanel(dates){
     return;
   }
   toggle.style.display = 'flex';
-  const counts = {};
-  allRecords.forEach(r => { if(r.date) counts[r.date] = (counts[r.date]||0) + 1; });
 
-  // Build a set of date strings that have data
+  // Use global dateCounts (from Supabase), fall back to allRecords
+  const counts = Object.keys(dateCounts).length > 0 ? dateCounts : {};
+  const totalCount = Object.values(counts).reduce((a,b)=>a+b, 0) || allRecords.length;
   const dateSet = new Set(dates);
 
-  // "全部日期" button
-  let html = `<button class="date-all-btn ${selectedDate===null?'active':''}" onclick="setDate(null)">📋 全部日期 <span class="count">${allRecords.length}条</span></button>`;
-  // Calendar
+  let html = `<button class="date-all-btn ${selectedDate===null?'active':''}" onclick="setDate(null)">📋 全部日期 <span class="count">${totalCount}条</span></button>`;
   html += renderCalendar(dateSet, counts);
   body.innerHTML = html;
 }
@@ -1443,12 +1450,12 @@ function renderCalendar(dateSet, counts){
 function calPrevMonth(){
   calMonth--;
   if(calMonth < 0){ calMonth = 11; calYear--; }
-  renderDatePanel([...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort());
+  renderDatePanel(availableDates.length > 0 ? availableDates : [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort());
 }
 function calNextMonth(){
   calMonth++;
   if(calMonth > 11){ calMonth = 0; calYear++; }
-  renderDatePanel([...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort());
+  renderDatePanel(availableDates.length > 0 ? availableDates : [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort());
 }
 
 function toggleDatePanel(){
@@ -1457,18 +1464,25 @@ function toggleDatePanel(){
 function closeDatePanel(){
   document.getElementById('datePanel').classList.remove('open');
 }
-function setDate(dateStr){
+async function setDate(dateStr){
   selectedDate = dateStr;
   if(dateStr) location.hash = '#'+dateStr;
   else location.hash = '';
-  // Update calendar to selected month
   if(dateStr){
     const d = new Date(dateStr + 'T00:00:00');
     calYear = d.getFullYear();
     calMonth = d.getMonth();
   }
   closeDatePanel();
-  renderAll();
+  if(!dateStr){
+    // 全部日期 — load all data
+    await loadAllFromSupabase();
+  } else if(recordsCache[dateStr]){
+    allRecords = recordsCache[dateStr];
+    renderAll();
+  } else {
+    await loadFromSupabase(dateStr);
+  }
 }
 // Click outside to close the date panel
 document.addEventListener('click', function(e){
@@ -1508,29 +1522,48 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
   if(supabaseConnected){
     // Clean up old-format records from previous buggy sync
     await cleanupOldFormatRecords();
-    // Always try loading from Supabase first
-    const loaded = await loadFromSupabase();
-    if(!loaded){
+    // Fetch available dates then load only the latest date's data
+    await fetchAvailableDates();
+    if(availableDates.length > 0){
+      const latest = availableDates[availableDates.length - 1];
+      selectedDate = latest;
+      await loadFromSupabase(latest);
+    } else {
       console.log('🐡 数据库已连接，但无数据，请上传文件');
     }
   } else {
     console.log('🐡 泡泡菌操作分析 · 请上传 Excel 文件开始分析');
   }
-  // Restore selected date from URL hash (e.g., #2026-05-27)
-  if(location.hash && location.hash.length > 1){
+  // If URL hash points to a different date, switch to it (load on demand)
+  if(location.hash && location.hash.length > 1 && supabaseConnected){
     const hashDate = decodeURIComponent(location.hash.slice(1));
-    if(allRecords.some(r => r.date === hashDate)){
+    if(hashDate !== selectedDate && availableDates.includes(hashDate)){
       selectedDate = hashDate;
-      renderAll();
+      if(supabaseConnected && recordsCache[hashDate]){
+        allRecords = recordsCache[hashDate];
+        renderAll();
+      } else if(supabaseConnected){
+        loadFromSupabase(hashDate);
+      } else {
+        renderAll();
+      }
     }
   }
 })();
 // Listen for hash changes (browser back/forward navigation)
 window.addEventListener('hashchange', function(){
   const hashDate = location.hash ? decodeURIComponent(location.hash.slice(1)) : null;
-  if(allRecords.length > 0 && hashDate !== selectedDate){
-    selectedDate = hashDate && allRecords.some(r => r.date === hashDate) ? hashDate : null;
-    renderAll();
+  if(hashDate === null || hashDate === ''){
+    selectedDate = null;
+    if(supabaseConnected) loadAllFromSupabase();
+  } else if(availableDates.includes(hashDate)){
+    selectedDate = hashDate;
+    if(supabaseConnected && recordsCache[hashDate]){
+      allRecords = recordsCache[hashDate];
+      renderAll();
+    } else if(supabaseConnected){
+      loadFromSupabase(hashDate);
+    }
   }
 });
 </script>
