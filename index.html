@@ -1254,7 +1254,7 @@ function renderOpChart(){
       datasets:[{data,backgroundColor:colors.slice(0,labels.length),borderWidth:2,borderColor:'#fff'}]
     },
     options:{
-      responsive:true,maintainAspectRatio:false,
+      responsive:true,maintainAspectRatio:true,aspectRatio:1.5,
       plugins:{
         legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:12}},
         tooltip:{callbacks:{label:function(ctx){const total=filteredData.records.length;return ctx.label+': '+ctx.raw+' 笔 ('+(ctx.raw/total*100).toFixed(1)+'%)';}}}
