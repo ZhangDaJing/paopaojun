@@ -53,13 +53,42 @@ header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radi
 .filter-btn .badge-count{display:inline-block;background:var(--border);color:var(--muted);font-size:11px;padding:0 6px;border-radius:8px;font-weight:600}
 .filter-btn.active .badge-count{background:var(--blue);color:#fff}
 
-/* ====== Date Selector ====== */
-.date-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;padding:10px 16px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow)}
-.date-bar .label{font-size:13px;font-weight:600;color:var(--text);margin-right:2px}
-.date-btn{padding:5px 14px;border:1px solid var(--border);border-radius:16px;background:transparent;font-size:13px;cursor:pointer;color:var(--text);transition:.2s;user-select:none}
-.date-btn:hover{border-color:#1e3a5f;color:#1e3a5f}
-.date-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
-.date-btn .count{font-size:11px;opacity:.7;margin-left:3px}
+/* ====== Floating Date Panel ====== */
+#dateToggle{
+  position:fixed; right:0; top:50%; transform:translateY(-50%);
+  width:32px; height:56px; background:var(--card); border:1px solid var(--border);
+  border-right:none; border-radius:8px 0 0 8px; cursor:pointer; z-index:99;
+  display:none; align-items:center; justify-content:center;
+  font-size:16px; box-shadow:var(--shadow); transition:.2s;
+}
+#dateToggle:hover{background:#f0f2f5;width:36px}
+#datePanel{
+  position:fixed; right:-240px; top:50%; transform:translateY(-50%);
+  width:220px; background:var(--card); border:1px solid var(--border);
+  border-right:none; border-radius:10px 0 0 10px; z-index:98;
+  box-shadow:-4px 0 20px rgba(0,0,0,.08); transition:right .28s ease;
+  overflow:hidden;
+}
+#datePanel.open{right:0}
+.date-panel-header{
+  padding:14px 16px 10px; font-size:14px; font-weight:700;
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid var(--border);
+}
+.date-panel-header .close-btn{background:none;border:none;font-size:16px;cursor:pointer;color:var(--muted);padding:2px 6px}
+.date-panel-header .close-btn:hover{color:var(--text)}
+.date-panel-body{padding:8px 12px 12px; max-height:50vh; overflow-y:auto}
+.date-panel-btn{
+  display:flex; align-items:center; justify-content:space-between;
+  width:100%; padding:8px 10px; border:none; border-radius:6px;
+  background:transparent; font-size:13px; cursor:pointer; color:var(--text);
+  transition:.15s; text-align:left; margin-bottom:2px;
+}
+.date-panel-btn:hover{background:#f3f4f6}
+.date-panel-btn.active{background:#1e3a5f;color:#fff;font-weight:600}
+.date-panel-btn .count{font-size:11px;opacity:.65}
+.date-panel-btn.active .count{opacity:.9}
+.date-panel-divider{height:1px;background:var(--border);margin:6px 0}
 
 /* ====== Summary Cards ====== */
 .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
@@ -240,12 +269,6 @@ header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radi
     <span style="font-size:12px;color:var(--muted);margin-left:4px" id="filterHint">显示全部记录</span>
   </div>
 
-  <!-- Date Selector -->
-  <div class="date-bar" id="dateBar" style="display:none">
-    <span class="label">📅 日期：</span>
-    <div id="dateButtons" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-  </div>
-
   <!-- Dashboard -->
   <div id="dashboard" style="display:none">
 
@@ -399,6 +422,16 @@ header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radi
 );</pre>
     </div>
   </div>
+</div>
+
+<!-- Floating Date Panel -->
+<div id="dateToggle" title="选择日期">📅</div>
+<div id="datePanel">
+  <div class="date-panel-header">
+    <span>📅 选择日期</span>
+    <button class="close-btn" onclick="toggleDatePanel()">✕</button>
+  </div>
+  <div class="date-panel-body" id="datePanelBody"></div>
 </div>
 
 <script>
@@ -1327,32 +1360,63 @@ function formatDateLabel(dateStr){
 }
 function rebuildAvailableDates(){
   const dates = [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort();
-  renderDateSelector(dates);
+  // Default to latest date if no date is selected yet
+  if(dates.length > 0 && selectedDate === null){
+    selectedDate = dates[dates.length - 1];
+  }
+  renderDatePanel(dates);
 }
-function renderDateSelector(dates){
-  const container = document.getElementById('dateButtons');
-  const bar = document.getElementById('dateBar');
+function renderDatePanel(dates){
+  const toggle = document.getElementById('dateToggle');
+  const body = document.getElementById('datePanelBody');
   if(!dates || dates.length === 0){
-    bar.style.display = 'none';
+    toggle.style.display = 'none';
     return;
   }
-  bar.style.display = 'flex';
+  toggle.style.display = 'flex';
   const counts = {};
   allRecords.forEach(r => { if(r.date) counts[r.date] = (counts[r.date]||0) + 1; });
-  let html = `<button class="date-btn ${selectedDate===null?'active':''}" onclick="setDate(null)">📋 全部</button>`;
-  dates.forEach(d => {
+  let html = `<button class="date-panel-btn ${selectedDate===null?'active':''}" onclick="setDate(null)">📋 全部日期 <span class="count">${allRecords.length}条</span></button>`;
+  html += '<div class="date-panel-divider"></div>';
+  // Show dates in reverse order (newest first)
+  [...dates].reverse().forEach(d => {
     const active = selectedDate === d;
-    html += `<button class="date-btn${active?' active':''}" onclick="setDate('${d}')">${formatDateLabel(d)} <span class="count">${counts[d]||0}条</span></button>`;
+    html += `<button class="date-panel-btn${active?' active':''}" onclick="setDate('${d}')">
+      <span>${formatDateLabel(d)}</span>
+      <span class="count">${counts[d]||0}条</span>
+    </button>`;
   });
-  container.innerHTML = html;
+  body.innerHTML = html;
+}
+function toggleDatePanel(){
+  document.getElementById('datePanel').classList.toggle('open');
+}
+function closeDatePanel(){
+  document.getElementById('datePanel').classList.remove('open');
 }
 function setDate(dateStr){
   selectedDate = dateStr;
-  // Update URL hash for bookmarkability
   if(dateStr) location.hash = '#'+dateStr;
   else location.hash = '';
+  closeDatePanel();
   renderAll();
 }
+// Click outside to close the date panel
+document.addEventListener('click', function(e){
+  const panel = document.getElementById('datePanel');
+  const toggle = document.getElementById('dateToggle');
+  if(panel.classList.contains('open') &&
+     !panel.contains(e.target) &&
+     !toggle.contains(e.target)){
+    closeDatePanel();
+  }
+});
+
+// Fix chart resize on window resize (responsive charts)
+window.addEventListener('resize', function(){
+  if(sectorChartInstance) sectorChartInstance.resize();
+  if(opChartInstance) opChartInstance.resize();
+});
 
 // ============================================================
 //  INIT
