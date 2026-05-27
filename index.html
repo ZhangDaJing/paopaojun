@@ -709,6 +709,20 @@ async function loadFromSupabase(){
     return false;
   }
 }
+
+/** Clean up records stored with old-format concatenated source_file (pre-fix data) */
+async function cleanupOldFormatRecords(){
+  if(!supabaseClient || !supabaseConnected) return;
+  try {
+    // Old buggy code stored source_file as "4.16 | 4.17 | 4.20"
+    const { data, error } = await supabaseClient.from('records').select('id').filter('source_file', 'like', '%|%');
+    if(error) throw error;
+    if(data && data.length > 0){
+      await supabaseClient.from('records').delete().filter('source_file', 'like', '%|%');
+      console.log('🐡 已清理 '+data.length+' 条旧格式记录');
+    }
+  } catch(e) { /* silently ignore */ }
+}
 // ============================================================
 if(typeof XLSX === 'undefined'){
   document.getElementById('uploadZone').innerHTML =
@@ -1566,8 +1580,18 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
     }
   } catch(e) { /* silent fail, fall through */ }
   if(supabaseConnected){
+    // Clean up old-format records from previous buggy sync
+    await cleanupOldFormatRecords();
+    // Always try loading from Supabase first
     const loaded = await loadFromSupabase();
-    if(!loaded) console.log('🐡 数据库已连接，但无数据，请上传文件');
+    if(!loaded){
+      // Supabase connected but empty — fall back to localStorage
+      if(loadFromLocalStorage()){
+        console.log('🐡 已加载本地缓存数据');
+      } else {
+        console.log('🐡 数据库已连接，但无数据，请上传文件');
+      }
+    }
   } else if(!loadFromLocalStorage()){
     console.log('🐡 泡泡菌操作分析 · 请上传 Excel 文件开始分析');
   }
