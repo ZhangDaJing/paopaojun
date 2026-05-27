@@ -595,9 +595,10 @@ async function syncToSupabase(sourceFileName){
 async function loadFromSupabase(){
   if(!supabaseClient || !supabaseConnected) return false;
   try {
-    const { data, error } = await supabaseClient.from('records').select('*').order('id', { ascending: true });
+    const { data, error } = await supabaseClient.from('records').select('*').order('id', { ascending: true }).limit(100000);
     if(error) throw error;
     if(!data || data.length === 0) return false;
+    console.log('🐡 从数据库加载了 '+data.length+' 条记录');
     // Build set of available dates
     const dateSet = new Set(data.map(r=>r.date).filter(Boolean));
     const dates = [...dateSet].sort();
