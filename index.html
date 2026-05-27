@@ -846,6 +846,14 @@ async function handleFiles(files){
     // Reset selectedDate so rebuildAvailableDates picks the latest
     selectedDate = null;
     renderAll();
+    // Update local cache for instant load on next refresh
+    const todayStr = new Date().toISOString().slice(0,10);
+    const yesterdayStr = new Date(Date.now()-86400000).toISOString().slice(0,10);
+    const importedDates = [...new Set(allRecords.map(r=>r.date).filter(Boolean))];
+    const cacheDate = importedDates.includes(todayStr) ? todayStr : importedDates.includes(yesterdayStr) ? yesterdayStr : '';
+    if(cacheDate){
+      saveLocalCache(cacheDate, allRecords.filter(r => r.date === cacheDate));
+    }
   }catch(e){alert('解析失败：'+e.message);console.error(e)}
   loading.classList.remove('active');
 }
@@ -1586,62 +1594,125 @@ window.addEventListener('resize', function(){
 });
 
 // ============================================================
+//  LOCAL CACHE (instant page load, no API wait)
+// ============================================================
+const CACHE_KEY = 'paopao_data_cache';
+
+function getLocalCache(){
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if(!raw) return null;
+    const c = JSON.parse(raw);
+    if(!c.date || !Array.isArray(c.records)) return null;
+    return c;
+  } catch(e){ return null; }
+}
+
+function saveLocalCache(date, records){
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ date, records, cachedAt: Date.now() }));
+  } catch(e) { /* ignored */ }
+}
+
+// ============================================================
 //  INIT
 // ============================================================
 document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
 
 // Auto-connect Supabase with saved config or hardcoded defaults
 (async function initApp(){
+  // ===== 1. Show cached data instantly (if available) =====
+  const cached = getLocalCache();
+  if(cached){
+    selectedDate = cached.date;
+    allRecords = cached.records;
+    // Rebuild sectors from cached records
+    const smap = {};
+    allRecords.forEach(r => {
+      if(!smap[r.sector]) smap[r.sector]={name:r.sector,records:[],actualBuyCount:0,actualSellCount:0,actualBuyAmount:0,actualSellAmount:0,netFlow:0};
+      const s=smap[r.sector]; s.records.push(r);
+      if(r.opType==='buy'){s.actualBuyCount++;s.actualBuyAmount+=r.amount;}
+      else{s.actualSellCount++;s.actualSellAmount+=r.amount;}
+      s.netFlow=s.actualBuyAmount-s.actualSellAmount;
+    });
+    allSectors = Object.values(smap);
+    document.getElementById('headerDate').textContent = formatDateLabel(cached.date);
+    document.getElementById('filterBar').style.display='flex';
+    document.getElementById('importStatus').textContent = '📦 缓存数据 · '+formatDateLabel(cached.date);
+    document.getElementById('importStatus').style.display = 'inline';
+    dashboard.style.display = 'block';
+    renderAll();
+    console.log('🐡 显示缓存数据：'+cached.date);
+  }
+
+  // ===== 2. Background: connect to Supabase & get real data =====
   const cfg = {url: DEFAULT_SUPABASE_URL, key: DEFAULT_SUPABASE_KEY};
   try {
     const client = supabase.createClient(cfg.url, cfg.key);
-    // Quick connection test — head:true means no rows returned, limit:1 makes it even faster
     const { error } = await client.from('records').select('id', { head: true }).limit(1);
     if(!error){
       supabaseClient = client;
       supabaseConnected = true;
       updateSupabaseStatus();
 
-    }
-  } catch(e) { /* silent fail, fall through */ }
-  if(supabaseConnected){
-    // Clean up old-format records from previous buggy sync
-    await cleanupOldFormatRecords();
-    // Fetch available dates then load only the latest date's data
-    await fetchAvailableDates();
-    if(availableDates.length > 0){
-      const latest = availableDates[availableDates.length - 1];
-      selectedDate = latest;
-      const ok = await loadFromSupabase(latest);
-      if(!ok){
-        // Per-date query failed — try loading all data as fallback
-        console.log('🐡 按日期加载失败，尝试加载全部数据');
-        await loadAllFromSupabase();
+      // Get available dates (lightweight, paginated in background)
+      await fetchAvailableDates();
+
+      if(availableDates.length > 0){
+        // Find today or yesterday (prefer today)
+        const todayStr = new Date().toISOString().slice(0,10);
+        const yesterdayStr = new Date(Date.now()-86400000).toISOString().slice(0,10);
+        let targetDate = availableDates.includes(todayStr) ? todayStr : null;
+        if(!targetDate) targetDate = availableDates.includes(yesterdayStr) ? yesterdayStr : null;
+        if(!targetDate) targetDate = availableDates[availableDates.length - 1];
+
+        if(cached && cached.date === targetDate){
+          // Cache is still fresh — just update indicator & calendar
+          document.getElementById('importStatus').textContent = '☁️ 云端数据 · '+formatDateLabel(targetDate);
+          renderDatePanel(availableDates);
+          console.log('🐡 缓存数据已验证：'+targetDate);
+        } else {
+          // Load fresh data from Supabase (different/better date)
+          selectedDate = targetDate;
+          const ok = await loadFromSupabase(targetDate);
+          if(!ok){
+            console.log('🐡 按日期加载失败，尝试全部数据');
+            await loadAllFromSupabase();
+          }
+          // Cache for next visit
+          saveLocalCache(targetDate, allRecords);
+          console.log('🐡 已缓存 '+targetDate+' 数据');
+        }
+      } else {
+        // Supabase has no data
+        if(!cached){
+          document.getElementById('importStatus').textContent = '📂 暂无数据，请上传文件';
+          document.getElementById('importStatus').style.display = 'inline';
+          dashboard.style.display = 'block';
+        }
+        console.log('🐡 数据库已连接，但无数据');
       }
-    } else {
-      document.getElementById('importStatus').textContent = '📂 暂无数据，请上传文件';
-      document.getElementById('importStatus').style.display = 'inline';
-      dashboard.style.display = 'block';
-      console.log('🐡 数据库已连接，但无数据，请上传文件');
     }
-  } else {
+  } catch(e) { /* silent fail */ }
+
+  // ===== 3. Handle disconnected state =====
+  if(!supabaseConnected && !cached){
     dashboard.style.display = 'block';
     document.getElementById('importStatus').textContent = '📂 未连接数据库';
     document.getElementById('importStatus').style.display = 'inline';
     console.log('🐡 泡泡菌操作分析 · 请上传 Excel 文件开始分析');
   }
-  // If URL hash points to a different date, switch to it (load on demand)
+
+  // ===== 4. URL hash check (switch to a different date) =====
   if(location.hash && location.hash.length > 1 && supabaseConnected){
     const hashDate = decodeURIComponent(location.hash.slice(1));
     if(hashDate !== selectedDate && availableDates.includes(hashDate)){
       selectedDate = hashDate;
-      if(supabaseConnected && recordsCache[hashDate]){
+      if(recordsCache[hashDate]){
         allRecords = recordsCache[hashDate];
         renderAll();
-      } else if(supabaseConnected){
-        loadFromSupabase(hashDate);
       } else {
-        renderAll();
+        loadFromSupabase(hashDate);
       }
     }
   }
