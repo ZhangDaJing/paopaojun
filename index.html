@@ -563,10 +563,22 @@ function disconnectSupabase(){
   closeSettings();
 }
 
-/** Fetch all rows from Supabase using pagination to bypass server-side row limits */
+/** Fetch rows from Supabase with a large range to bypass server row limits.
+ *  For date queries (lightweight, many rows) this is a single fast call.
+ *  For full-data queries with many rows, use fetchAllFromSupabasePaginated instead. */
 async function fetchAllFromSupabase(columns, queryModifier = null){
   if(!supabaseClient || !supabaseConnected) return [];
-  const pageSize = 900;
+  let query = supabaseClient.from('records').select(columns).range(0, 99999);
+  if(queryModifier) query = queryModifier(query);
+  const { data, error } = await query;
+  if(error) throw error;
+  return data || [];
+}
+
+/** Paginated version — only used by loadAllFromSupabase() where row count could be very large */
+async function fetchAllFromSupabasePaginated(columns, queryModifier = null){
+  if(!supabaseClient || !supabaseConnected) return [];
+  const pageSize = 1000;
   let start = 0;
   let allData = [];
   while(true){
@@ -680,7 +692,7 @@ async function loadAllFromSupabase(){
   try {
     const uncached = availableDates.filter(d => !recordsCache[d]);
     if(uncached.length > 0){
-      const data = await fetchAllFromSupabase('*', q => q.order('id', { ascending: true }));
+      const data = await fetchAllFromSupabasePaginated('*', q => q.order('id', { ascending: true }));
       if(!data || data.length === 0) return false;
       allRecords = data.map(r=>({
         date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
@@ -721,16 +733,10 @@ async function loadAllFromSupabase(){
   }
 }
 
-/** Clean up records stored with old-format concatenated source_file (pre-fix data) */
+/** Clean up old-format records — DISABLED (was deleting user data) */
 async function cleanupOldFormatRecords(){
-  if(!supabaseClient || !supabaseConnected) return;
-  try {
-    const { data, error } = await supabaseClient.from('records').select('id').filter('source_file', 'like', '%|%');
-    if(error) throw error;
-    if(data && data.length > 0){
-      console.log('🐡 发现 '+data.length+' 条旧格式记录（已在最新代码中忽略，不会自动删除）');
-    }
-  } catch(e) { /* silently ignore */ }
+  // no-op: was deleting records WHERE source_file LIKE '%|%' which matched ALL user data
+  return;
 }
 // ============================================================
 if(typeof XLSX === 'undefined'){
@@ -1491,9 +1497,9 @@ function renderCalendar(dateSet, counts){
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
 
   let h = `<div class="cal-header">
-    <button class="cal-nav" onclick="calPrevMonth()">◀</button>
+    <button class="cal-nav" onclick="calPrevMonth(event)">◀</button>
     <span class="cal-title">${calYear}年${monthNames[calMonth]}</span>
-    <button class="cal-nav" onclick="calNextMonth()">▶</button>
+    <button class="cal-nav" onclick="calNextMonth(event)">▶</button>
   </div>`;
   h += '<div class="cal-grid">';
   // Weekday headers
@@ -1524,12 +1530,14 @@ function renderCalendar(dateSet, counts){
   return h;
 }
 
-function calPrevMonth(){
+function calPrevMonth(e){
+  if(e) e.stopPropagation();
   calMonth--;
   if(calMonth < 0){ calMonth = 11; calYear--; }
   renderDatePanel(availableDates.length > 0 ? availableDates : [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort());
 }
-function calNextMonth(){
+function calNextMonth(e){
+  if(e) e.stopPropagation();
   calMonth++;
   if(calMonth > 11){ calMonth = 0; calYear++; }
   renderDatePanel(availableDates.length > 0 ? availableDates : [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort());
@@ -1588,7 +1596,8 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
   const cfg = {url: DEFAULT_SUPABASE_URL, key: DEFAULT_SUPABASE_KEY};
   try {
     const client = supabase.createClient(cfg.url, cfg.key);
-    const { error } = await client.from('records').select('id', { count: 'exact', head: true });
+    // Quick connection test — head:true means no rows returned, limit:1 makes it even faster
+    const { error } = await client.from('records').select('id', { head: true }).limit(1);
     if(!error){
       supabaseClient = client;
       supabaseConnected = true;
