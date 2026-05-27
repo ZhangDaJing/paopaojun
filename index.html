@@ -708,12 +708,10 @@ async function loadAllFromSupabase(){
 async function cleanupOldFormatRecords(){
   if(!supabaseClient || !supabaseConnected) return;
   try {
-    // Old buggy code stored source_file as "4.16 | 4.17 | 4.20"
     const { data, error } = await supabaseClient.from('records').select('id').filter('source_file', 'like', '%|%');
     if(error) throw error;
     if(data && data.length > 0){
-      await supabaseClient.from('records').delete().filter('source_file', 'like', '%|%');
-      console.log('🐡 已清理 '+data.length+' 条旧格式记录');
+      console.log('🐡 发现 '+data.length+' 条旧格式记录（已在最新代码中忽略，不会自动删除）');
     }
   } catch(e) { /* silently ignore */ }
 }
@@ -1589,11 +1587,22 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
     if(availableDates.length > 0){
       const latest = availableDates[availableDates.length - 1];
       selectedDate = latest;
-      await loadFromSupabase(latest);
+      const ok = await loadFromSupabase(latest);
+      if(!ok){
+        // Per-date query failed — try loading all data as fallback
+        console.log('🐡 按日期加载失败，尝试加载全部数据');
+        await loadAllFromSupabase();
+      }
     } else {
+      document.getElementById('importStatus').textContent = '📂 暂无数据，请上传文件';
+      document.getElementById('importStatus').style.display = 'inline';
+      dashboard.style.display = 'block';
       console.log('🐡 数据库已连接，但无数据，请上传文件');
     }
   } else {
+    dashboard.style.display = 'block';
+    document.getElementById('importStatus').textContent = '📂 未连接数据库';
+    document.getElementById('importStatus').style.display = 'inline';
     console.log('🐡 泡泡菌操作分析 · 请上传 Excel 文件开始分析');
   }
   // If URL hash points to a different date, switch to it (load on demand)
