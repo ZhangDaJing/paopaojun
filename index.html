@@ -182,6 +182,7 @@ header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radi
 /* ====== Fund Detail Modal ====== */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;justify-content:center;align-items:center;padding:20px}
 .modal-overlay.active{display:flex}
+#fundModal{z-index:101} /* 确保基金详情在板块弹窗之上 */
 .modal{background:var(--card);border-radius:var(--radius);max-width:700px;width:100%;max-height:80vh;overflow-y:auto;padding:24px;position:relative}
 .modal h2{font-size:18px;margin-bottom:6px}
 .modal .close-btn{position:absolute;top:14px;right:18px;font-size:22px;cursor:pointer;color:var(--muted);background:none;border:none}
@@ -251,7 +252,7 @@ header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radi
       <p style="margin-top:4px;font-size:13px;color:var(--muted)" id="fileSummary"></p>
       <p style="margin-top:10px"><a href="#" onclick="event.preventDefault();event.stopPropagation();document.getElementById('fileInput').click()">重新上传</a></p>
     </div>
-    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
+    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" multiple>
   </div>
 
   <!-- Loading -->
@@ -725,33 +726,66 @@ zone.addEventListener('click', function(e){
   if(placeholder.style.display !== 'none') input.click();
 });
 
-// Drag & drop
+// Drag & drop (multiple files)
 zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragover')});
 zone.addEventListener('dragleave',()=>zone.classList.remove('dragover'));
-zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('dragover');const f=e.dataTransfer.files[0];if(f)handleFile(f)});
-input.addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0])});
+zone.addEventListener('drop',e=>{
+  e.preventDefault();zone.classList.remove('dragover');
+  const files = Array.from(e.dataTransfer.files).filter(f => f.name.match(/\.xlsx?$/i));
+  if(files.length) handleFiles(files);
+});
+input.addEventListener('change',e=>{
+  const files = Array.from(e.target.files).filter(f => f.name.match(/\.xlsx?$/i));
+  if(files.length) handleFiles(files);
+});
 
-async function handleFile(file){
+async function handleFiles(files){
   loading.classList.add('active');
   dashboard.style.display='none';
   try{
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf,{type:'array'});
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-    parseData(rows);
-    // Assign date to all records based on file name
-    const dateStr = extractDateFromFileName(file.name);
-    allRecords.forEach(r => r.date = dateStr);
-    document.getElementById('uploadPlaceholder').style.display='none';
-    document.getElementById('uploadResult').style.display='block';
-    document.getElementById('fileName').textContent = file.name;
-    document.getElementById('fileSummary').textContent = `共 ${allRecords.length} 条操作记录 · ${allSectors.length} 个板块`;
-    document.getElementById('headerDate').textContent = file.name.replace(/\.\w+$/,'');
+    let accumulatedRecords = [];
+    let sectorNameSet = new Set();
+    let fileLabels = [];
+
+    for(const file of files){
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf,{type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+
+      // parseData resets allRecords/allSectors — save records before next call
+      parseData(rows);
+      const dateStr = extractDateFromFileName(file.name);
+      allRecords.forEach(r => r.date = dateStr);
+      accumulatedRecords.push(...allRecords);
+      allSectors.forEach(s => sectorNameSet.add(s.name));
+      fileLabels.push(file.name.replace(/\.\w+$/,''));
+    }
+
+    // Combine all records and rebuild sectors from scratch
+    allRecords = accumulatedRecords;
+    allSectors = [...sectorNameSet].map(name => ({name, records: []}));
+    allSectors.forEach(s => {
+      s.records = allRecords.filter(r => r.sector === s.name);
+      s.actualBuyCount = s.records.filter(r => r.opType === 'buy').length;
+      s.actualSellCount = s.records.filter(r => r.opType === 'sell').length;
+      s.actualBuyAmount = s.records.filter(r => r.opType === 'buy').reduce((a, r) => a + r.amount, 0);
+      s.actualSellAmount = s.records.filter(r => r.opType === 'sell').reduce((a, r) => a + r.amount, 0);
+      s.netFlow = s.actualBuyAmount - s.actualSellAmount;
+    });
+
+    document.getElementById('uploadPlaceholder').style.display = 'none';
+    document.getElementById('uploadResult').style.display = 'block';
+    document.getElementById('fileName').textContent = fileLabels.join(' | ');
+    document.getElementById('fileSummary').textContent = `共 ${allRecords.length} 条操作记录 · ${allSectors.length} 个板块 · ${files.length} 个文件`;
+    document.getElementById('headerDate').textContent = files.length === 1
+      ? extractDateFromFileName(files[0].name) : '多日数据';
     document.getElementById('filterBar').style.display = 'flex';
-    document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
-    document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
-    dashboard.style.display='block';
+    document.getElementById('dingtouCount').textContent = allRecords.filter(r => r.operation === '定').length;
+    document.getElementById('uncategorizedCount').textContent = allRecords.filter(r => r.sector === '未分类').length;
+    dashboard.style.display = 'block';
+    // Reset selectedDate so rebuildAvailableDates picks the latest
+    selectedDate = null;
     renderAll();
     saveToLocalStorage();
     syncToSupabase();
