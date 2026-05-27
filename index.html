@@ -263,8 +263,8 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
     <div class="text">松开以上传 Excel 文件</div>
   </div>
 
-  <!-- Loading -->
-  <div class="loading" id="loading"><div class="spinner"></div><div>正在分析数据...</div></div>
+  <!-- Loading (visible by default, hidden by JS when ready) -->
+  <div class="loading active" id="loading"><div class="spinner"></div><div>正在加载数据...</div></div>
 
   <!-- Global Filters -->
   <div class="filter-bar" id="filterBar" style="display:none">
@@ -1621,12 +1621,108 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
 
 // Auto-connect Supabase with saved config or hardcoded defaults
 (async function initApp(){
-  // ===== 1. Show cached data instantly (if available) =====
+  // Loading is already showing from the HTML "active" class
+  dashboard.style.display = 'none';
+
+  const todayStr = new Date().toISOString().slice(0,10);
+  const yesterdayStr = new Date(Date.now()-86400000).toISOString().slice(0,10);
+
+  // ===== Step 1: Try Supabase directly (no separate connection test) =====
+  try {
+    const client = supabase.createClient(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_KEY);
+
+    // Try today's data first — this IS the connection test
+    let hitDate = todayStr;
+    let result = await client.from('records').select('*').eq('date', hitDate).range(0, 999);
+
+    // If no data today, try yesterday
+    if (result.error || !result.data || result.data.length === 0) {
+      hitDate = yesterdayStr;
+      result = await client.from('records').select('*').eq('date', hitDate).range(0, 999);
+    }
+
+    if (!result.error && result.data && result.data.length > 0) {
+      // ✅ Connected + have today/yesterday data — show immediately!
+      supabaseClient = client;
+      supabaseConnected = true;
+      updateSupabaseStatus();
+
+      selectedDate = hitDate;
+      allRecords = result.data.map(r=>({
+        date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
+        fundRaw: r.fund_raw, fundName: r.fund_name, fundEst: r.fund_est,
+        amountRaw: r.amount_raw, amount: r.amount, amountPct: r.amount_pct,
+        blogger: r.blogger, monthReturn: r.month_return, yearReturn: r.year_return,
+        holdingsRaw: r.holdings_raw, holdingsNum: r.holdings_num, style: r.style
+      }));
+      recordsCache[hitDate] = allRecords;
+
+      // Build sectors
+      const smap = {};
+      allRecords.forEach(r => {
+        if(!smap[r.sector]) smap[r.sector]={name:r.sector,records:[],actualBuyCount:0,actualSellCount:0,actualBuyAmount:0,actualSellAmount:0,netFlow:0};
+        const s=smap[r.sector]; s.records.push(r);
+        if(r.opType==='buy'){s.actualBuyCount++;s.actualBuyAmount+=r.amount;}
+        else{s.actualSellCount++;s.actualSellAmount+=r.amount;}
+        s.netFlow=s.actualBuyAmount-s.actualSellAmount;
+      });
+      allSectors = Object.values(smap);
+
+      // Show dashboard
+      loading.classList.remove('active');
+      dashboard.style.display = 'block';
+      document.getElementById('fileInput').value = '';
+      document.getElementById('importStatus').textContent = '☁️ 云端数据 · '+formatDateLabel(hitDate);
+      document.getElementById('importStatus').style.display = 'inline';
+      document.getElementById('importBtn').textContent = '📂 重新导入';
+      document.getElementById('headerDate').textContent = formatDateLabel(hitDate);
+      document.getElementById('filterBar').style.display='flex';
+      document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
+      document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
+      document.getElementById('cacheHint').style.display='inline';
+      document.getElementById('cacheHint').textContent = '☁️ 云端数据';
+      renderAll();
+
+      // Cache for next visit
+      saveLocalCache(hitDate, allRecords);
+
+      // Background: fetch full date list for calendar (don't await — let it run async)
+      fetchAvailableDates().then(() => {
+        if(availableDates.length > 0) renderDatePanel(availableDates);
+      });
+
+      console.log('🐡 已加载 '+hitDate+' 数据 ('+allRecords.length+' 条)');
+      return; // ⭐ DONE — skip everything below
+    }
+
+    if (!result.error) {
+      // Connected but no data for today/yesterday — use normal flow
+      supabaseClient = client;
+      supabaseConnected = true;
+      updateSupabaseStatus();
+
+      await fetchAvailableDates();
+      if (availableDates.length > 0) {
+        const latest = availableDates[availableDates.length - 1];
+        selectedDate = latest;
+        const ok = await loadFromSupabase(latest);
+        if (!ok) { await loadAllFromSupabase(); }
+        saveLocalCache(latest, allRecords);
+      } else {
+        loading.classList.remove('active');
+        document.getElementById('importStatus').textContent = '📂 暂无数据，请上传文件';
+        document.getElementById('importStatus').style.display = 'inline';
+        dashboard.style.display = 'block';
+      }
+      return;
+    }
+  } catch(e) { /* Supabase unreachable — fall through to cache */ }
+
+  // ===== Step 2: Supabase unavailable — try local cache =====
   const cached = getLocalCache();
-  if(cached){
+  if (cached) {
     selectedDate = cached.date;
     allRecords = cached.records;
-    // Rebuild sectors from cached records
     const smap = {};
     allRecords.forEach(r => {
       if(!smap[r.sector]) smap[r.sector]={name:r.sector,records:[],actualBuyCount:0,actualSellCount:0,actualBuyAmount:0,actualSellAmount:0,netFlow:0};
@@ -1636,86 +1732,23 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
       s.netFlow=s.actualBuyAmount-s.actualSellAmount;
     });
     allSectors = Object.values(smap);
+    loading.classList.remove('active');
+    dashboard.style.display = 'block';
+    document.getElementById('importStatus').textContent = '📦 离线缓存 · '+formatDateLabel(cached.date);
+    document.getElementById('importStatus').style.display = 'inline';
     document.getElementById('headerDate').textContent = formatDateLabel(cached.date);
     document.getElementById('filterBar').style.display='flex';
-    document.getElementById('importStatus').textContent = '📦 缓存数据 · '+formatDateLabel(cached.date);
-    document.getElementById('importStatus').style.display = 'inline';
-    dashboard.style.display = 'block';
     renderAll();
-    console.log('🐡 显示缓存数据：'+cached.date);
+    console.log('🐡 离线模式，显示缓存数据：'+cached.date);
+    return;
   }
 
-  // ===== 2. Background: connect to Supabase & get real data =====
-  const cfg = {url: DEFAULT_SUPABASE_URL, key: DEFAULT_SUPABASE_KEY};
-  try {
-    const client = supabase.createClient(cfg.url, cfg.key);
-    const { error } = await client.from('records').select('id', { head: true }).limit(1);
-    if(!error){
-      supabaseClient = client;
-      supabaseConnected = true;
-      updateSupabaseStatus();
-
-      // Get available dates (lightweight, paginated in background)
-      await fetchAvailableDates();
-
-      if(availableDates.length > 0){
-        // Find today or yesterday (prefer today)
-        const todayStr = new Date().toISOString().slice(0,10);
-        const yesterdayStr = new Date(Date.now()-86400000).toISOString().slice(0,10);
-        let targetDate = availableDates.includes(todayStr) ? todayStr : null;
-        if(!targetDate) targetDate = availableDates.includes(yesterdayStr) ? yesterdayStr : null;
-        if(!targetDate) targetDate = availableDates[availableDates.length - 1];
-
-        if(cached && cached.date === targetDate){
-          // Cache is still fresh — just update indicator & calendar
-          document.getElementById('importStatus').textContent = '☁️ 云端数据 · '+formatDateLabel(targetDate);
-          renderDatePanel(availableDates);
-          console.log('🐡 缓存数据已验证：'+targetDate);
-        } else {
-          // Load fresh data from Supabase (different/better date)
-          selectedDate = targetDate;
-          const ok = await loadFromSupabase(targetDate);
-          if(!ok){
-            console.log('🐡 按日期加载失败，尝试全部数据');
-            await loadAllFromSupabase();
-          }
-          // Cache for next visit
-          saveLocalCache(targetDate, allRecords);
-          console.log('🐡 已缓存 '+targetDate+' 数据');
-        }
-      } else {
-        // Supabase has no data
-        if(!cached){
-          document.getElementById('importStatus').textContent = '📂 暂无数据，请上传文件';
-          document.getElementById('importStatus').style.display = 'inline';
-          dashboard.style.display = 'block';
-        }
-        console.log('🐡 数据库已连接，但无数据');
-      }
-    }
-  } catch(e) { /* silent fail */ }
-
-  // ===== 3. Handle disconnected state =====
-  if(!supabaseConnected && !cached){
-    dashboard.style.display = 'block';
-    document.getElementById('importStatus').textContent = '📂 未连接数据库';
-    document.getElementById('importStatus').style.display = 'inline';
-    console.log('🐡 泡泡菌操作分析 · 请上传 Excel 文件开始分析');
-  }
-
-  // ===== 4. URL hash check (switch to a different date) =====
-  if(location.hash && location.hash.length > 1 && supabaseConnected){
-    const hashDate = decodeURIComponent(location.hash.slice(1));
-    if(hashDate !== selectedDate && availableDates.includes(hashDate)){
-      selectedDate = hashDate;
-      if(recordsCache[hashDate]){
-        allRecords = recordsCache[hashDate];
-        renderAll();
-      } else {
-        loadFromSupabase(hashDate);
-      }
-    }
-  }
+  // ===== Step 3: Nothing — show empty state =====
+  loading.classList.remove('active');
+  document.getElementById('importStatus').textContent = '📂 未连接数据库，暂无数据';
+  document.getElementById('importStatus').style.display = 'inline';
+  dashboard.style.display = 'block';
+  console.log('🐡 泡泡菌操作分析 · 请上传 Excel 文件开始分析');
 })();
 // Listen for hash changes (browser back/forward navigation)
 window.addEventListener('hashchange', function(){
