@@ -244,11 +244,10 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
     <button id="importBtn" onclick="document.getElementById('fileInput').click()">📂 导入文件</button>
     <span id="importStatus" style="display:none;font-size:12px;color:#94a3b8"></span>
-    <span style="display:none;font-size:12px;background:rgba(255,255,255,.1);padding:3px 10px;border-radius:12px;color:#94a3b8" id="cacheHint">💾 已缓存</span>
+    <span style="display:none;font-size:12px;background:rgba(255,255,255,.1);padding:3px 10px;border-radius:12px;color:#94a3b8" id="cacheHint">☁️ 云端数据</span>
     <span style="display:none;font-size:12px;background:rgba(16,185,129,.15);padding:3px 10px;border-radius:12px;color:#34d399" id="dbStatusIndicator">☁️ 云端</span>
     <span class="date-badge" id="headerDate">--</span>
     <a href="#" onclick="openSettings()" style="color:#94a3b8;font-size:14px;text-decoration:none;opacity:.7" title="数据库设置">⚙️</a>
-    <a href="#" onclick="clearLocalData()" style="color:#94a3b8;font-size:12px;text-decoration:none;opacity:.7" title="清除本地缓存">✕</a>
   </div>
 </header>
 
@@ -494,82 +493,13 @@ function toggleFilter(type){
 }
 
 // ============================================================
-//  LOCAL STORAGE PERSISTENCE
-// ============================================================
-function saveToLocalStorage(){
-  try {
-    // Strip circular/extra fields before saving
-    const clean = allRecords.map(r=>({
-      date:r.date, sector:r.sector, operation:r.operation, opType:r.opType, opLabel:r.opLabel,
-      fundRaw:r.fundRaw, fundName:r.fundName, fundEst:r.fundEst,
-      amountRaw:r.amountRaw, amount:r.amount, amountPct:r.amountPct,
-      blogger:r.blogger, monthReturn:r.monthReturn, yearReturn:r.yearReturn,
-      holdingsRaw:r.holdingsRaw, holdingsNum:r.holdingsNum, style:r.style
-    }));
-    localStorage.setItem('paopaojun_data', JSON.stringify({
-      records: clean, fileName: document.getElementById('fileName').textContent,
-      timestamp: Date.now()
-    }));
-  } catch(e){ /* localStorage full or unavailable */ }
-}
-function loadFromLocalStorage(){
-  const raw = localStorage.getItem('paopaojun_data');
-  if(!raw) return false;
-  try {
-    const data = JSON.parse(raw);
-    allRecords = data.records;
-    const smap = {};
-    allRecords.forEach(r=>{
-      if(!smap[r.sector]) smap[r.sector]={name:r.sector,records:[],actualBuyCount:0,actualSellCount:0,actualBuyAmount:0,actualSellAmount:0,netFlow:0};
-      const s=smap[r.sector]; s.records.push(r);
-      if(r.opType==='buy'){s.actualBuyCount++;s.actualBuyAmount+=r.amount;}
-      else{s.actualSellCount++;s.actualSellAmount+=r.amount;}
-      s.netFlow=s.actualBuyAmount-s.actualSellAmount;
-    });
-    allSectors = Object.values(smap);
-    const fn = data.fileName||'已保存数据';
-    document.getElementById('fileName').textContent = fn;
-    document.getElementById('importStatus').textContent = '📂 '+fn+' · '+allRecords.length+'条';
-    document.getElementById('importStatus').style.display = 'inline';
-    document.getElementById('importBtn').textContent = '📂 重新导入';
-    document.getElementById('headerDate').textContent = (data.fileName||'').replace(/\.\w+$/,'')||new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
-    document.getElementById('filterBar').style.display='flex';
-    document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
-    document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
-    document.getElementById('cacheHint').style.display='inline';
-    dashboard.style.display='block';
-    renderAll();
-    return true;
-  } catch(e){ localStorage.removeItem('paopaojun_data'); return false; }
-}
-function clearLocalData(){
-  localStorage.removeItem('paopaojun_data');
-  location.reload();
-}
-
-// ============================================================
 //  SUPABASE INTEGRATION
 // ============================================================
-function saveSupabaseConfig(url, key){
-  try { localStorage.setItem('supabase_config', JSON.stringify({url,key})); } catch(e){}
-}
-function loadSupabaseConfig(){
-  try {
-    const raw = localStorage.getItem('supabase_config');
-    if(!raw) return null;
-    return JSON.parse(raw);
-  } catch(e){ return null; }
-}
-function clearSupabaseConfig(){
-  try { localStorage.removeItem('supabase_config'); } catch(e){}
-}
+
 
 function openSettings(){
-  const cfg = loadSupabaseConfig();
-  if(cfg){
-    document.getElementById('supabaseUrl').value = cfg.url;
-    document.getElementById('supabaseKey').value = cfg.key;
-  }
+  document.getElementById('supabaseUrl').value = DEFAULT_SUPABASE_URL;
+  document.getElementById('supabaseKey').value = DEFAULT_SUPABASE_KEY;
   updateSupabaseStatus();
   document.getElementById('settingsModal').classList.add('active');
 }
@@ -608,7 +538,6 @@ async function connectSupabase(){
     if(error) throw error;
     supabaseClient = client;
     supabaseConnected = true;
-    saveSupabaseConfig(url, key);
     statusEl.innerHTML = '✅ 连接成功';
     statusEl.style.color = 'var(--green)';
     document.getElementById('dbStatusIndicator').style.display = 'inline';
@@ -626,7 +555,6 @@ async function connectSupabase(){
 function disconnectSupabase(){
   supabaseClient = null;
   supabaseConnected = false;
-  clearSupabaseConfig();
   updateSupabaseStatus();
   alert('已断开数据库连接');
   closeSettings();
@@ -813,7 +741,7 @@ async function handleFiles(files){
     document.getElementById('importStatus').textContent = `📂 ${fileNameStr} · ${allRecords.length}条`;
     document.getElementById('importStatus').style.display = 'inline';
     document.getElementById('importBtn').textContent = '📂 重新导入';
-    // Store fileName for localStorage/sync reference
+    // Store fileName for sync reference
     document.getElementById('headerDate').textContent = files.length === 1
       ? extractDateFromFileName(files[0].name) : '多日数据';
     document.getElementById('filterBar').style.display = 'flex';
@@ -823,7 +751,6 @@ async function handleFiles(files){
     // Reset selectedDate so rebuildAvailableDates picks the latest
     selectedDate = null;
     renderAll();
-    saveToLocalStorage();
   }catch(e){alert('解析失败：'+e.message);console.error(e)}
   loading.classList.remove('active');
 }
@@ -1565,9 +1492,7 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
 
 // Auto-connect Supabase with saved config or hardcoded defaults
 (async function initApp(){
-  // Try connecting with saved config first, then fall back to defaults
-  let cfg = loadSupabaseConfig();
-  if(!cfg) cfg = {url: DEFAULT_SUPABASE_URL, key: DEFAULT_SUPABASE_KEY};
+  const cfg = {url: DEFAULT_SUPABASE_URL, key: DEFAULT_SUPABASE_KEY};
   try {
     const client = supabase.createClient(cfg.url, cfg.key);
     const { error } = await client.from('records').select('id', { count: 'exact', head: true });
@@ -1575,8 +1500,7 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
       supabaseClient = client;
       supabaseConnected = true;
       updateSupabaseStatus();
-      // Save defaults to localStorage so settings modal shows them
-      saveSupabaseConfig(cfg.url, cfg.key);
+
     }
   } catch(e) { /* silent fail, fall through */ }
   if(supabaseConnected){
@@ -1585,14 +1509,11 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
     // Always try loading from Supabase first
     const loaded = await loadFromSupabase();
     if(!loaded){
-      // Supabase connected but empty — fall back to localStorage
-      if(loadFromLocalStorage()){
-        console.log('🐡 已加载本地缓存数据');
-      } else {
+      console.log(
         console.log('🐡 数据库已连接，但无数据，请上传文件');
       }
     }
-  } else if(!loadFromLocalStorage()){
+  } else {
     console.log('🐡 泡泡菌操作分析 · 请上传 Excel 文件开始分析');
   }
   // Restore selected date from URL hash (e.g., #2026-05-27)
