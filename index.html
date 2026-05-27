@@ -328,9 +328,7 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
     <button id="importBtn" onclick="document.getElementById('fileInput').click()">📂 导入文件</button>
     <span id="importStatus" style="display:none;font-size:12px;color:#94a3b8"></span>
-    <span style="display:none;font-size:12px;background:rgba(255,255,255,.1);padding:3px 10px;border-radius:12px;color:#94a3b8" id="cacheHint">☁️ 云端数据</span>
-    <span style="display:none;font-size:12px;background:rgba(16,185,129,.15);padding:3px 10px;border-radius:12px;color:#34d399" id="dbStatusIndicator">☁️ 云端</span>
-    <span class="date-badge" id="headerDate">--</span>
+    <span style="display:none;width:8px;height:8px;border-radius:50%;background:#34d399;flex-shrink:0" id="dbStatusIndicator"></span>
     <a href="#" onclick="openSettings()" style="color:#94a3b8;font-size:14px;text-decoration:none;opacity:.7" title="数据库设置">⚙️</a>
   </div>
 </header>
@@ -438,6 +436,7 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
         <th onclick="sortDetail('holdingsNum')">持有 ⇅</th>
         <th>风格</th>
       </tr></thead><tbody id="detailTableBody"></tbody></table>
+      <button class="expand-btn" id="detailLoadMore" onclick="loadMoreDetail()" style="display:none">加载更多 50 条</button>
     </div>
 
   </div><!-- /dashboard -->
@@ -546,6 +545,8 @@ let selectedDate = null;
 let recordsCache = {};
 let availableDates = [];
 let dateCounts = {};
+const DETAIL_PAGE_SIZE = 50;
+let detailDisplayCount = DETAIL_PAGE_SIZE;
 
 // ============================================================
 //  GLOBAL FILTERS
@@ -754,12 +755,9 @@ async function loadFromSupabase(dateStr){
     document.getElementById('importStatus').textContent = '📂 云端数据 · '+formatDateLabel(dateStr)+' · '+allRecords.length+'条';
     document.getElementById('importStatus').style.display = 'inline';
     document.getElementById('importBtn').textContent = '📂 重新导入';
-    document.getElementById('headerDate').textContent = formatDateLabel(dateStr);
     document.getElementById('filterBar').style.display='flex';
     document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
     document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
-    document.getElementById('cacheHint').style.display='inline';
-    document.getElementById('cacheHint').textContent = '☁️ 云端数据';
     dashboard.style.display='block';
     renderAll();
     return true;
@@ -801,12 +799,9 @@ async function loadAllFromSupabase(){
     document.getElementById('importStatus').textContent = '📂 云端数据 · '+allRecords.length+'条';
     document.getElementById('importStatus').style.display = 'inline';
     document.getElementById('importBtn').textContent = '📂 重新导入';
-    document.getElementById('headerDate').textContent = '全部日期';
     document.getElementById('filterBar').style.display='flex';
     document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
     document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
-    document.getElementById('cacheHint').style.display='inline';
-    document.getElementById('cacheHint').textContent = '☁️ 云端数据';
     dashboard.style.display='block';
     renderAll();
     return true;
@@ -912,9 +907,6 @@ async function handleFiles(files){
     document.getElementById('importStatus').textContent = `📂 ${fileNameStr} · ${allRecords.length}条`;
     document.getElementById('importStatus').style.display = 'inline';
     document.getElementById('importBtn').textContent = '📂 重新导入';
-    // Store fileName for sync reference
-    document.getElementById('headerDate').textContent = files.length === 1
-      ? extractDateFromFileName(files[0].name) : '多日数据';
     document.getElementById('filterBar').style.display = 'flex';
     document.getElementById('dingtouCount').textContent = allRecords.filter(r => r.operation === '定').length;
     document.getElementById('uncategorizedCount').textContent = allRecords.filter(r => r.sector === '未分类').length;
@@ -1156,6 +1148,7 @@ function getFundStats(records = allRecords){
 //  RENDER
 // ============================================================
 function renderAll(){
+  detailDisplayCount = DETAIL_PAGE_SIZE;
   applyFilters();
   rebuildAvailableDates();
   // Update filter hint
@@ -1299,7 +1292,7 @@ function getSellSortFn(mode){
 function renderTopLists(){
   const fundStats = getFundStats(filteredData.records);
   const activeFunds = fundStats.filter(f=>(f.buyCount+f.sellCount)>=2);
-  const listLimit = window.innerWidth < 600 ? 5 : 10;
+  const listLimit = 10;
 
   const topBuys = [...activeFunds].sort(getBuySortFn(buySortMode)).slice(0,listLimit);
   document.getElementById('topBuys').innerHTML = topBuys.map((f,i)=>`
@@ -1337,7 +1330,7 @@ function renderSectorTable(){
   const sectors = filteredData.sectors;
   const active = sectors.filter(s=>s.actualBuyCount>0||s.actualSellCount>0).sort((a,b)=>Math.abs(b.netFlow||0)-Math.abs(a.netFlow||0));
   document.getElementById('sectorCount').textContent = active.length+'个';
-  const defaultLimit = window.innerWidth < 600 ? 10 : 20;
+  const defaultLimit = 20;
   const show = (sectorExpandAll || active.length <= defaultLimit) ? active : active.slice(0, defaultLimit);
   const btn = document.getElementById('sectorExpandBtn');
   if(active.length <= defaultLimit) btn.style.display = 'none';
@@ -1399,8 +1392,10 @@ function renderDetailTable(){
     return 0;
   });
 
-  document.getElementById('detailCount').textContent = filtered.length+'条';
-  document.getElementById('detailTableBody').innerHTML = filtered.map(r=>{
+  const total = filtered.length;
+  const shown = filtered.slice(0, detailDisplayCount);
+  document.getElementById('detailCount').textContent = total+'条'+(total>detailDisplayCount?`（显示前${detailDisplayCount}条）`:'');
+  document.getElementById('detailTableBody').innerHTML = shown.map(r=>{
     const tagCls = r.opType==='buy'?'buy':'sell';
     return `<tr>
       <td>${escHtml(r.sector)}</td>
@@ -1414,11 +1409,26 @@ function renderDetailTable(){
       <td style="font-size:12px;color:var(--muted)">${escHtml(r.style)}</td>
     </tr>`;
   }).join('');
+
+  const btn = document.getElementById('detailLoadMore');
+  if(total > detailDisplayCount) {
+    const remaining = total - detailDisplayCount;
+    btn.textContent = `加载更多（剩余 ${remaining} 条）`;
+    btn.style.display = 'block';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function loadMoreDetail(){
+  detailDisplayCount += DETAIL_PAGE_SIZE;
+  renderDetailTable();
 }
 
 function sortDetail(key){
   if(currentSort.key===key) currentSort.dir *= -1;
   else {currentSort.key=key; currentSort.dir=-1;}
+  detailDisplayCount = DETAIL_PAGE_SIZE;
   renderDetailTable();
 }
 
@@ -1711,7 +1721,6 @@ function saveLocalCache(date, records){
 // ============================================================
 //  INIT
 // ============================================================
-document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
 
 // Auto-connect Supabase with saved config or hardcoded defaults
 (async function initApp(){
@@ -1769,12 +1778,9 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
       document.getElementById('importStatus').textContent = '☁️ 云端数据 · '+formatDateLabel(hitDate);
       document.getElementById('importStatus').style.display = 'inline';
       document.getElementById('importBtn').textContent = '📂 重新导入';
-      document.getElementById('headerDate').textContent = formatDateLabel(hitDate);
       document.getElementById('filterBar').style.display='flex';
       document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
       document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
-      document.getElementById('cacheHint').style.display='inline';
-      document.getElementById('cacheHint').textContent = '☁️ 云端数据';
       renderAll();
 
       // Cache for next visit
@@ -1830,7 +1836,6 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
     dashboard.style.display = 'block';
     document.getElementById('importStatus').textContent = '📦 离线缓存 · '+formatDateLabel(cached.date);
     document.getElementById('importStatus').style.display = 'inline';
-    document.getElementById('headerDate').textContent = formatDateLabel(cached.date);
     document.getElementById('filterBar').style.display='flex';
     renderAll();
     console.log('🐡 离线模式，显示缓存数据：'+cached.date);
