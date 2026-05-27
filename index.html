@@ -1509,9 +1509,7 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
     // Always try loading from Supabase first
     const loaded = await loadFromSupabase();
     if(!loaded){
-      console.log(
-        console.log('🐡 数据库已连接，但无数据，请上传文件');
-      }
+      console.log('🐡 数据库已连接，但无数据，请上传文件');
     }
   } else {
     console.log('🐡 泡泡菌操作分析 · 请上传 Excel 文件开始分析');
