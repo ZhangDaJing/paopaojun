@@ -631,7 +631,7 @@ async function fetchAvailableDates(){
   dateCounts = {};
   if(!supabaseClient || !supabaseConnected) return;
   try {
-    const data = await fetchAllFromSupabase('date');
+    const data = await fetchAllFromSupabasePaginated('date');
     if(data) data.forEach(r => { if(r.date) dateCounts[r.date] = (dateCounts[r.date]||0) + 1; });
     availableDates = Object.keys(dateCounts).sort();
     const total = Object.values(dateCounts).reduce((a,b)=>a+b, 0);
@@ -647,7 +647,7 @@ async function loadFromSupabase(dateStr){
     if(recordsCache[dateStr]){
       allRecords = recordsCache[dateStr];
     } else {
-      const data = await fetchAllFromSupabase('*', q => q.eq('date', dateStr));
+      const data = await fetchAllFromSupabasePaginated('*', q => q.eq('date', dateStr));
       if(!data || data.length === 0) return false;
       allRecords = data.map(r=>({
         date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
