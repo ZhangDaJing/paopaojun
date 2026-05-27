@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>泡泡菌 · 博主基金操作分析</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+/* ====== Reset & Variables ====== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f2f5;--card:#fff;--text:#1a1a2e;--muted:#6b7280;
+  --green:#10b981;--green-bg:#ecfdf5;--red:#ef4444;--red-bg:#fef2f2;
+  --blue:#3b82f6;--amber:#f59e0b;--purple:#8b5cf6;
+  --border:#e5e7eb;--radius:12px;--shadow:0 1px 3px rgba(0,0,0,.08);
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+}
+html{font-size:14px}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+a{color:var(--blue);text-decoration:none}
+
+/* ====== Header ====== */
+header{background:linear-gradient(135deg,#1e3a5f,#0f1b2d);color:#fff;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+header h1{font-size:20px;font-weight:700;letter-spacing:.5px}
+header h1 span{color:#60a5fa}
+header .sub{font-size:13px;opacity:.7}
+header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radius:20px;font-size:13px}
+
+/* ====== Layout ====== */
+.container{max-width:1400px;margin:0 auto;padding:20px 16px;flex:1}
+
+/* ====== Upload ====== */
+.upload-zone{
+  background:var(--card);border:2px dashed var(--border);border-radius:var(--radius);
+  padding:48px 24px;text-align:center;cursor:pointer;transition:.25s;
+  margin-bottom:24px;
+}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--blue);background:#eff6ff}
+.upload-zone.has-file{border-color:var(--green);background:var(--green-bg);padding:24px}
+.upload-zone .icon{font-size:48px;margin-bottom:12px;opacity:.4}
+.upload-zone h3{font-size:18px;margin-bottom:6px}
+.upload-zone p{color:var(--muted);font-size:14px}
+.upload-zone .file-name{margin-top:8px;font-weight:600;color:var(--green)}
+
+/* ====== Global Filters ====== */
+.filter-bar{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;padding:12px 16px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow)}
+.filter-bar .label{font-size:13px;font-weight:600;color:var(--text);margin-right:4px}
+.filter-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border:1px solid var(--border);border-radius:20px;background:transparent;font-size:13px;cursor:pointer;color:var(--muted);transition:.2s;user-select:none}
+.filter-btn:hover{border-color:var(--blue);color:var(--blue)}
+.filter-btn.active{background:#e0f2fe;border-color:var(--blue);color:var(--blue)}
+.filter-btn .badge-count{display:inline-block;background:var(--border);color:var(--muted);font-size:11px;padding:0 6px;border-radius:8px;font-weight:600}
+.filter-btn.active .badge-count{background:var(--blue);color:#fff}
+
+/* ====== Summary Cards ====== */
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.summary-card{background:var(--card);border-radius:var(--radius);padding:18px 16px;box-shadow:var(--shadow)}
+.summary-card .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.summary-card .value{font-size:26px;font-weight:700}
+.summary-card .value.green{color:var(--green)}
+.summary-card .value.red{color:var(--red)}
+.summary-card .value.blue{color:var(--blue)}
+.summary-card .sub-text{font-size:12px;color:var(--muted);margin-top:2px}
+
+/* ====== Section Titles ====== */
+.section-title{font-size:17px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.section-title .badge{font-size:11px;background:var(--border);padding:2px 10px;border-radius:10px;font-weight:500}
+
+/* ====== Chart Row ====== */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:900px){.chart-row{grid-template-columns:1fr}}
+.chart-card{background:var(--card);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.chart-card .card-title{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text)}
+.chart-wrapper{position:relative;height:280px}
+
+/* ====== Top Lists ====== */
+.top-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px}
+@media(max-width:900px){.top-grid{grid-template-columns:1fr}}
+.top-card{background:var(--card);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.top-card .top-title{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.top-card .top-title .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+
+.sort-bar{display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.sort-label{font-size:12px;color:var(--muted)}
+.sort-btn{padding:3px 12px;border:1px solid var(--border);border-radius:14px;background:transparent;font-size:12px;cursor:pointer;color:var(--muted);transition:.2s}
+.sort-btn:hover{border-color:var(--blue);color:var(--blue)}
+.sort-btn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.top-item{
+  display:flex;align-items:center;gap:12px;padding:10px 0;
+  border-bottom:1px solid var(--border);
+}
+.top-item:last-child{border-bottom:none}
+.top-item .rank{font-size:13px;font-weight:700;width:24px;text-align:center;flex-shrink:0}
+.top-item .rank.gold{color:var(--amber)}
+.top-item .rank.silver{color:#9ca3af}
+.top-item .rank.bronze{color:#d97706}
+.top-item .info{flex:1;min-width:0}
+.top-item .info .name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-item .info .meta{font-size:12px;color:var(--muted);margin-top:2px}
+.top-item .stats{text-align:right;flex-shrink:0}
+.top-item .stats .num{font-weight:700;font-size:16px}
+.top-item .stats .num.green{color:var(--green)}
+.top-item .stats .num.red{color:var(--red)}
+.top-item .stats .lbl{font-size:11px;color:var(--muted)}
+
+/* ====== Sector Table ====== */
+.sector-table-wrap{background:var(--card);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);overflow-x:auto;margin-bottom:24px}
+.sector-table-wrap table{width:100%;border-collapse:collapse;font-size:13px}
+.sector-table-wrap th{text-align:left;padding:10px 12px;font-weight:600;color:var(--muted);font-size:12px;border-bottom:2px solid var(--border);white-space:nowrap}
+.sector-table-wrap td{padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+.sector-table-wrap tr:hover td{background:#f9fafb}
+.sector-table-wrap .sector-name{font-weight:600;cursor:pointer}
+.sector-table-wrap .sector-name:hover{color:var(--blue);text-decoration:underline}
+.expand-btn{display:block;margin:12px auto 0;padding:8px 28px;border:1px solid var(--border);border-radius:20px;background:transparent;font-size:13px;cursor:pointer;color:var(--muted);transition:.2s}
+.expand-btn:hover{color:var(--blue);border-color:var(--blue)}
+.bar-cell{position:relative;min-width:120px}
+.bar-bg{height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:3px;transition:width .6s}
+.bar-fill.green{background:var(--green)}
+.bar-fill.red{background:var(--red)}
+.bar-fill.blue{background:var(--blue)}
+.bar-label{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* ====== Full Data Table ====== */
+.data-table-wrap{background:var(--card);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);overflow-x:auto;margin-bottom:24px}
+.data-table-wrap .table-toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center}
+.data-table-wrap .table-toolbar input,.data-table-wrap .table-toolbar select{
+  padding:7px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:white;
+}
+.data-table-wrap .table-toolbar input{flex:1;min-width:160px}
+.data-table-wrap table{width:100%;border-collapse:collapse;font-size:13px}
+.data-table-wrap th{
+  text-align:left;padding:9px 10px;font-weight:600;color:var(--muted);font-size:11px;
+  border-bottom:2px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none;
+}
+.data-table-wrap th:hover{color:var(--text)}
+.data-table-wrap td{padding:9px 10px;border-bottom:1px solid var(--border);font-size:13px}
+.data-table-wrap tr:hover td{background:#f9fafb}
+.tag{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600}
+.tag.buy{background:var(--green-bg);color:var(--green)}
+.tag.sell{background:var(--red-bg);color:var(--red)}
+.tag.ding{background:#eff6ff;color:var(--blue)}
+
+/* ====== Fund Detail Modal ====== */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;justify-content:center;align-items:center;padding:20px}
+.modal-overlay.active{display:flex}
+.modal{background:var(--card);border-radius:var(--radius);max-width:700px;width:100%;max-height:80vh;overflow-y:auto;padding:24px;position:relative}
+.modal h2{font-size:18px;margin-bottom:6px}
+.modal .close-btn{position:absolute;top:14px;right:18px;font-size:22px;cursor:pointer;color:var(--muted);background:none;border:none}
+.modal .close-btn:hover{color:var(--text)}
+.modal .modal-meta{font-size:13px;color:var(--muted);margin-bottom:16px}
+.modal .modal-table{width:100%;border-collapse:collapse;font-size:13px}
+.modal .modal-table th{padding:8px 10px;text-align:left;font-weight:600;color:var(--muted);font-size:11px;border-bottom:2px solid var(--border)}
+.modal .modal-table td{padding:8px 10px;border-bottom:1px solid var(--border)}
+
+/* ====== Loading ====== */
+.loading{display:none;text-align:center;padding:40px;color:var(--muted)}
+.loading.active{display:block}
+.loading .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ====== Empty State ====== */
+.empty-state{text-align:center;padding:60px 24px;color:var(--muted)}
+.empty-state .icon{font-size:56px;margin-bottom:12px;opacity:.3}
+
+/* ====== Responsive ====== */
+@media(max-width:600px){
+  .summary-grid{grid-template-columns:repeat(2,1fr)}
+  header h1{font-size:16px}
+  .upload-zone{padding:32px 16px}
+}
+
+/* ====== Tooltip ====== */
+[data-tip]{position:relative;cursor:help}
+[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100%+6px);left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:4px 10px;border-radius:6px;font-size:12px;white-space:nowrap;z-index:10}
+
+/* scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🐡 泡泡菌 · <span>博主操作分析</span></h1>
+    <div class="sub">每日 Excel 上传 · 智能解析买卖趋势</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span style="display:none;font-size:12px;background:rgba(255,255,255,.1);padding:4px 12px;border-radius:12px;color:#94a3b8" id="cacheHint">💾 已缓存</span>
+    <span style="display:none;font-size:12px;background:rgba(16,185,129,.15);padding:4px 12px;border-radius:12px;color:#34d399" id="dbStatusIndicator">☁️ 云端</span>
+    <span class="date-badge" id="headerDate">--</span>
+    <a href="#" onclick="openSettings()" style="color:#94a3b8;font-size:14px;text-decoration:none;opacity:.7" title="数据库设置">⚙️</a>
+    <a href="#" onclick="clearLocalData()" style="color:#94a3b8;font-size:12px;text-decoration:none;opacity:.7;margin-left:4px" title="清除本地缓存">✕</a>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Upload -->
+  <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+    <div id="uploadPlaceholder">
+      <div class="icon">📂</div>
+      <h3>上传 Excel 操作记录</h3>
+      <p>点击选择文件，或拖拽文件到此处</p>
+      <p style="margin-top:6px;font-size:12px;color:#9ca3af">支持 .xlsx / .xls 格式</p>
+    </div>
+    <div id="uploadResult" style="display:none">
+      <div style="font-size:40px;margin-bottom:6px">✅</div>
+      <h3>文件已加载</h3>
+      <div class="file-name" id="fileName"></div>
+      <p style="margin-top:4px;font-size:13px;color:var(--muted)" id="fileSummary"></p>
+      <p style="margin-top:10px"><a href="#" onclick="event.preventDefault();document.getElementById('fileInput').click()">重新上传</a></p>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
+  </div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading"><div class="spinner"></div><div>正在分析数据...</div></div>
+
+  <!-- Global Filters -->
+  <div class="filter-bar" id="filterBar" style="display:none">
+    <span class="label">🔍 全局过滤：</span>
+    <button class="filter-btn" data-filter="dingtou" onclick="toggleFilter('dingtou')">
+      过滤定投 <span class="badge-count" id="dingtouCount">0</span>
+    </button>
+    <button class="filter-btn" data-filter="uncategorized" onclick="toggleFilter('uncategorized')">
+      过滤未分类 <span class="badge-count" id="uncategorizedCount">0</span>
+    </button>
+    <span style="font-size:12px;color:var(--muted);margin-left:4px" id="filterHint">显示全部记录</span>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" style="display:none">
+
+    <!-- Summary -->
+    <div class="summary-grid" id="summaryGrid"></div>
+
+    <!-- Charts -->
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="card-title">📊 板块买卖热度</div>
+        <div class="chart-wrapper"><canvas id="sectorChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="card-title">🥧 操作类型分布</div>
+        <div class="chart-wrapper"><canvas id="opChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Top Trending Buys & Sells -->
+    <div class="top-grid">
+      <div class="top-card">
+        <div class="top-title"><span class="dot" style="background:var(--green)"></span>🔥 最热买入共识</div>
+        <div class="sort-bar">
+          <span class="sort-label">排序：</span>
+          <button class="sort-btn active" data-buy-sort="score" onclick="setBuySort('score')">综合</button>
+          <button class="sort-btn" data-buy-sort="people" onclick="setBuySort('people')">人数</button>
+          <button class="sort-btn" data-buy-sort="amount" onclick="setBuySort('amount')">金额</button>
+        </div>
+        <div id="topBuys"></div>
+      </div>
+      <div class="top-card">
+        <div class="top-title"><span class="dot" style="background:var(--red)"></span>⚠️ 最强卖出信号</div>
+        <div class="sort-bar">
+          <span class="sort-label">排序：</span>
+          <button class="sort-btn active" data-sell-sort="score" onclick="setSellSort('score')">综合</button>
+          <button class="sort-btn" data-sell-sort="people" onclick="setSellSort('people')">人数</button>
+          <button class="sort-btn" data-sell-sort="amount" onclick="setSellSort('amount')">金额</button>
+        </div>
+        <div id="topSells"></div>
+      </div>
+    </div>
+
+    <!-- Sector Table -->
+    <div class="sector-table-wrap">
+      <div class="section-title">📈 板块资金流向 <span class="badge" id="sectorCount"></span></div>
+      <table><thead><tr>
+        <th>板块</th><th>买入</th><th>卖出</th><th>净差额</th><th>净方向</th><th>趋势强度</th>
+      </tr></thead><tbody id="sectorTableBody"></tbody></table>
+      <button class="expand-btn" id="sectorExpandBtn" onclick="toggleSectorExpand()">展开全部</button>
+    </div>
+
+
+    <!-- Full Data Table -->
+    <div class="data-table-wrap">
+      <div class="section-title">📋 全部操作明细 <span class="badge" id="detailCount"></span></div>
+      <div class="table-toolbar">
+        <input type="text" id="filterInput" placeholder="搜索基金、博主、板块..." oninput="renderDetailTable()">
+        <select id="filterOp" onchange="renderDetailTable()">
+          <option value="">全部操作</option>
+          <option value="buy">买入（定投+加仓）</option>
+          <option value="sell">卖出</option>
+        </select>
+        <select id="filterSector" onchange="renderDetailTable()">
+          <option value="">全部板块</option>
+        </select>
+      </div>
+      <table><thead><tr>
+        <th onclick="sortDetail('sector')">板块 ⇅</th>
+        <th onclick="sortDetail('operationLabel')">操作 ⇅</th>
+        <th onclick="sortDetail('fundName')">基金名称 ⇅</th>
+        <th onclick="sortDetail('amount')">金额 ⇅</th>
+        <th onclick="sortDetail('blogger')">博主 ⇅</th>
+        <th>近一月</th><th>近一年</th>
+        <th onclick="sortDetail('holdingsNum')">持有 ⇅</th>
+        <th>风格</th>
+      </tr></thead><tbody id="detailTableBody"></tbody></table>
+    </div>
+
+  </div><!-- /dashboard -->
+</div><!-- /container -->
+
+<!-- Fund Detail Modal -->
+<div class="modal-overlay" id="fundModal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <button class="close-btn" onclick="closeModal()">&times;</button>
+    <h2 id="modalTitle">--</h2>
+    <div class="modal-meta" id="modalMeta"></div>
+    <table class="modal-table"><thead><tr>
+      <th>博主</th><th>操作</th><th>金额</th><th>占比</th><th>博主持有</th>
+    </tr></thead><tbody id="modalBody"></tbody></table>
+  </div>
+</div>
+
+<!-- Sector Detail Modal -->
+<div class="modal-overlay" id="sectorModal" onclick="if(event.target===this)closeSectorModal()">
+  <div class="modal">
+    <button class="close-btn" onclick="closeSectorModal()">&times;</button>
+    <h2 id="sectorModalTitle">--</h2>
+    <div class="modal-meta" id="sectorModalMeta"></div>
+    <div style="overflow-x:auto">
+      <table class="modal-table"><thead><tr>
+        <th onclick="sectorModalSortBy('name')">基金名称 ⇅</th>
+        <th onclick="sectorModalSortBy('buys')">买入 ⇅</th>
+        <th onclick="sectorModalSortBy('sells')">卖出 ⇅</th>
+        <th onclick="sectorModalSortBy('buyAmt')">买入金额 ⇅</th>
+        <th onclick="sectorModalSortBy('sellAmt')">卖出金额 ⇅</th>
+        <th onclick="sectorModalSortBy('bloggers')">参与博主 ⇅</th>
+        <th onclick="sectorModalSortBy('total')">方向 ⇅</th>
+      </tr></thead><tbody id="sectorModalBody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal" style="max-width:480px">
+    <button class="close-btn" onclick="closeSettings()">&times;</button>
+    <h2>⚙️ 数据库设置</h2>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+      对接 Supabase 免费数据库，数据持久化到云端，任何设备都能访问。
+      <a href="https://supabase.com" target="_blank" rel="noopener">注册 Supabase</a>
+      并创建项目后，在此填入连接信息。
+    </p>
+    <div style="display:grid;gap:12px;margin-bottom:16px">
+      <div>
+        <label style="font-size:13px;font-weight:600">Supabase URL</label>
+        <input type="text" id="supabaseUrl" placeholder="https://xxx.supabase.co" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-top:4px;font-size:13px">
+      </div>
+      <div>
+        <label style="font-size:13px;font-weight:600">Supabase Anon Key</label>
+        <input type="text" id="supabaseKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-top:4px;font-size:13px;font-family:monospace">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button onclick="connectSupabase()" style="padding:8px 24px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600">测试连接并保存</button>
+      <button onclick="disconnectSupabase()" style="padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:13px;cursor:pointer;color:var(--muted)">断开连接</button>
+      <span id="supabaseStatus" style="font-size:13px;color:var(--muted)">未连接</span>
+    </div>
+    <hr style="margin:20px 0;border:none;border-top:1px solid var(--border)">
+    <div style="font-size:13px;color:var(--muted)">
+      <strong>📋 首次使用需要创建表：</strong>
+      <p style="margin-top:6px">在 Supabase 控制台 → SQL Editor 中执行以下 SQL：</p>
+      <pre style="background:#f8f9fa;padding:12px;border-radius:6px;margin-top:6px;overflow-x:auto;font-size:12px;line-height:1.5">CREATE TABLE records (
+  id BIGSERIAL PRIMARY KEY,
+  sector TEXT, operation TEXT, op_type TEXT, op_label TEXT,
+  fund_raw TEXT, fund_name TEXT, fund_est NUMERIC,
+  amount_raw TEXT, amount NUMERIC, amount_pct TEXT,
+  blogger TEXT, month_return TEXT, year_return TEXT,
+  holdings_raw TEXT, holdings_num NUMERIC, style TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  GLOBALS
+// ============================================================
+let allRecords = [];
+let allSectors = [];
+let currentSort = {key:'amount',dir:-1};
+let sectorExpandAll = false;
+let supabaseClient = null;
+let supabaseConnected = false;
+let sectorModalFunds = [];
+let sectorModalSector = '';
+let sectorModalSort = {key:'total',dir:-1};
+
+// ============================================================
+//  GLOBAL FILTERS
+// ============================================================
+let hideDingTou = false;       // 过滤定投
+let hideUncategorized = false; // 过滤未分类
+let filteredData = null;       // {records[], sectors[]}
+
+function applyFilters(){
+  let records = allRecords;
+  if(hideDingTou) records = records.filter(r => r.operation !== '定');
+  if(hideUncategorized) records = records.filter(r => r.sector !== '未分类');
+  // Recompute sector stats from filtered records
+  const smap = {};
+  records.forEach(r => {
+    if(!smap[r.sector]) smap[r.sector] = {name:r.sector,records:[],actualBuyCount:0,actualSellCount:0,actualBuyAmount:0,actualSellAmount:0,netFlow:0};
+    const s = smap[r.sector];
+    s.records.push(r);
+    if(r.opType === 'buy'){ s.actualBuyCount++; s.actualBuyAmount += r.amount; }
+    else { s.actualSellCount++; s.actualSellAmount += r.amount; }
+  });
+  Object.values(smap).forEach(s => { s.netFlow = s.actualBuyAmount - s.actualSellAmount; });
+  filteredData = { records, sectors: Object.values(smap) };
+}
+
+function toggleFilter(type){
+  if(type === 'dingtou') hideDingTou = !hideDingTou;
+  if(type === 'uncategorized') hideUncategorized = !hideUncategorized;
+  document.querySelector(`[data-filter="${type}"]`).classList.toggle('active');
+  renderAll();
+}
+
+// ============================================================
+//  LOCAL STORAGE PERSISTENCE
+// ============================================================
+function saveToLocalStorage(){
+  try {
+    // Strip circular/extra fields before saving
+    const clean = allRecords.map(r=>({
+      sector:r.sector, operation:r.operation, opType:r.opType, opLabel:r.opLabel,
+      fundRaw:r.fundRaw, fundName:r.fundName, fundEst:r.fundEst,
+      amountRaw:r.amountRaw, amount:r.amount, amountPct:r.amountPct,
+      blogger:r.blogger, monthReturn:r.monthReturn, yearReturn:r.yearReturn,
+      holdingsRaw:r.holdingsRaw, holdingsNum:r.holdingsNum, style:r.style
+    }));
+    localStorage.setItem('paopaojun_data', JSON.stringify({
+      records: clean, fileName: document.getElementById('fileName').textContent,
+      timestamp: Date.now()
+    }));
+  } catch(e){ /* localStorage full or unavailable */ }
+}
+function loadFromLocalStorage(){
+  const raw = localStorage.getItem('paopaojun_data');
+  if(!raw) return false;
+  try {
+    const data = JSON.parse(raw);
+    allRecords = data.records;
+    const smap = {};
+    allRecords.forEach(r=>{
+      if(!smap[r.sector]) smap[r.sector]={name:r.sector,records:[],actualBuyCount:0,actualSellCount:0,actualBuyAmount:0,actualSellAmount:0,netFlow:0};
+      const s=smap[r.sector]; s.records.push(r);
+      if(r.opType==='buy'){s.actualBuyCount++;s.actualBuyAmount+=r.amount;}
+      else{s.actualSellCount++;s.actualSellAmount+=r.amount;}
+      s.netFlow=s.actualBuyAmount-s.actualSellAmount;
+    });
+    allSectors = Object.values(smap);
+    document.getElementById('uploadPlaceholder').style.display='none';
+    document.getElementById('uploadResult').style.display='block';
+    document.getElementById('fileName').textContent = data.fileName||'已保存数据';
+    document.getElementById('fileSummary').textContent = '共 '+allRecords.length+' 条操作记录 · '+allSectors.length+' 个板块 · (缓存)';
+    document.getElementById('headerDate').textContent = (data.fileName||'').replace(/\.\w+$/,'')||new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
+    document.getElementById('filterBar').style.display='flex';
+    document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
+    document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
+    document.getElementById('cacheHint').style.display='inline';
+    dashboard.style.display='block';
+    renderAll();
+    return true;
+  } catch(e){ localStorage.removeItem('paopaojun_data'); return false; }
+}
+function clearLocalData(){
+  localStorage.removeItem('paopaojun_data');
+  location.reload();
+}
+
+// ============================================================
+//  SUPABASE INTEGRATION
+// ============================================================
+function saveSupabaseConfig(url, key){
+  try { localStorage.setItem('supabase_config', JSON.stringify({url,key})); } catch(e){}
+}
+function loadSupabaseConfig(){
+  try {
+    const raw = localStorage.getItem('supabase_config');
+    if(!raw) return null;
+    return JSON.parse(raw);
+  } catch(e){ return null; }
+}
+function clearSupabaseConfig(){
+  try { localStorage.removeItem('supabase_config'); } catch(e){}
+}
+
+function openSettings(){
+  const cfg = loadSupabaseConfig();
+  if(cfg){
+    document.getElementById('supabaseUrl').value = cfg.url;
+    document.getElementById('supabaseKey').value = cfg.key;
+  }
+  updateSupabaseStatus();
+  document.getElementById('settingsModal').classList.add('active');
+}
+function closeSettings(){
+  document.getElementById('settingsModal').classList.remove('active');
+}
+
+function updateSupabaseStatus(){
+  const el = document.getElementById('supabaseStatus');
+  if(supabaseConnected){
+    el.innerHTML = '✅ 已连接';
+    el.style.color = 'var(--green)';
+    // show indicator in header too
+    document.getElementById('dbStatusIndicator').style.display = 'inline';
+  } else {
+    el.textContent = '未连接';
+    el.style.color = 'var(--muted)';
+    document.getElementById('dbStatusIndicator').style.display = 'none';
+  }
+}
+
+async function connectSupabase(){
+  const url = document.getElementById('supabaseUrl').value.trim();
+  const key = document.getElementById('supabaseKey').value.trim();
+  if(!url || !key){
+    alert('请填写 Supabase URL 和 Anon Key');
+    return;
+  }
+  const statusEl = document.getElementById('supabaseStatus');
+  statusEl.textContent = '连接中...';
+  statusEl.style.color = 'var(--muted)';
+  try {
+    const client = supabase.createClient(url, key);
+    // Test connection by querying the records table
+    const { data, error } = await client.from('records').select('id', { count: 'exact', head: true });
+    if(error) throw error;
+    supabaseClient = client;
+    supabaseConnected = true;
+    saveSupabaseConfig(url, key);
+    statusEl.innerHTML = '✅ 连接成功';
+    statusEl.style.color = 'var(--green)';
+    document.getElementById('dbStatusIndicator').style.display = 'inline';
+    document.getElementById('dbStatusIndicator').title = '已连接 Supabase';
+    alert('✅ 数据库连接成功！如果有已上传的数据，可点击页面上的 "上传" 重新同步到数据库。');
+    closeSettings();
+  } catch(e){
+    supabaseClient = null;
+    supabaseConnected = false;
+    statusEl.textContent = '❌ 连接失败：'+e.message;
+    statusEl.style.color = '#ef4444';
+  }
+}
+
+function disconnectSupabase(){
+  supabaseClient = null;
+  supabaseConnected = false;
+  clearSupabaseConfig();
+  updateSupabaseStatus();
+  alert('已断开数据库连接');
+  closeSettings();
+}
+
+/** Upload all records to Supabase (batch insert) */
+async function syncToSupabase(){
+  if(!supabaseClient || !supabaseConnected) return false;
+  try {
+    const records = allRecords.map(r=>({
+      sector: r.sector, operation: r.operation, op_type: r.opType, op_label: r.opLabel,
+      fund_raw: r.fundRaw, fund_name: r.fundName, fund_est: r.fundEst,
+      amount_raw: r.amountRaw, amount: r.amount, amount_pct: r.amountPct,
+      blogger: r.blogger, month_return: r.monthReturn, year_return: r.yearReturn,
+      holdings_raw: r.holdingsRaw, holdings_num: r.holdingsNum, style: r.style
+    }));
+    // Batch insert (up to 1000 at a time)
+    const batchSize = 200;
+    for(let i=0; i<records.length; i+=batchSize){
+      const batch = records.slice(i, i+batchSize);
+      const { error } = await supabaseClient.from('records').insert(batch);
+      if(error) throw error;
+    }
+    document.getElementById('dbStatusIndicator').style.display = 'inline';
+    document.getElementById('dbStatusIndicator').title = '已同步 '+records.length+' 条记录';
+    return true;
+  } catch(e){
+    console.error('Supabase sync failed:', e);
+    return false;
+  }
+}
+
+/** Load records from Supabase (replaces allRecords) */
+async function loadFromSupabase(){
+  if(!supabaseClient || !supabaseConnected) return false;
+  try {
+    const { data, error } = await supabaseClient.from('records').select('*').order('id', { ascending: true });
+    if(error) throw error;
+    if(!data || data.length === 0) return false;
+    // Map database fields back to app format
+    allRecords = data.map(r=>({
+      sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
+      fundRaw: r.fund_raw, fundName: r.fund_name, fundEst: r.fund_est,
+      amountRaw: r.amount_raw, amount: r.amount, amountPct: r.amount_pct,
+      blogger: r.blogger, monthReturn: r.month_return, yearReturn: r.year_return,
+      holdingsRaw: r.holdings_raw, holdingsNum: r.holdings_num, style: r.style
+    }));
+    // Recompute sectors
+    const smap = {};
+    allRecords.forEach(r=>{
+      if(!smap[r.sector]) smap[r.sector]={name:r.sector,records:[],actualBuyCount:0,actualSellCount:0,actualBuyAmount:0,actualSellAmount:0,netFlow:0};
+      const s=smap[r.sector]; s.records.push(r);
+      if(r.opType==='buy'){s.actualBuyCount++;s.actualBuyAmount+=r.amount;}
+      else{s.actualSellCount++;s.actualSellAmount+=r.amount;}
+      s.netFlow=s.actualBuyAmount-s.actualSellAmount;
+    });
+    allSectors = Object.values(smap);
+    document.getElementById('uploadPlaceholder').style.display='none';
+    document.getElementById('uploadResult').style.display='block';
+    document.getElementById('fileName').textContent = '云端数据';
+    document.getElementById('fileSummary').textContent = '共 '+allRecords.length+' 条操作记录 · '+allSectors.length+' 个板块 · (数据库)';
+    document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
+    document.getElementById('filterBar').style.display='flex';
+    document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
+    document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
+    document.getElementById('cacheHint').style.display='inline';
+    document.getElementById('cacheHint').textContent = '☁️ 云端数据';
+    dashboard.style.display='block';
+    renderAll();
+    return true;
+  } catch(e){
+    console.error('Supabase load failed:', e);
+    return false;
+  }
+}
+// ============================================================
+if(typeof XLSX === 'undefined'){
+  document.getElementById('uploadZone').innerHTML =
+    '<div style="padding:40px;text-align:center;color:#ef4444">' +
+    '<div style="font-size:48px;margin-bottom:12px">⚠️</div>' +
+    '<h3>依赖库加载失败</h3>' +
+    '<p style="margin-top:8px">无法加载 Excel 解析库，请检查网络连接或刷新重试。</p>' +
+    '<p style="margin-top:4px;font-size:13px;color:#9ca3af">需要加载 cdnjs.cloudflare.com 上的 xlsx 库</p>' +
+    '</div>';
+  throw new Error('XLSX library not loaded');
+}
+
+// ============================================================
+//  FILE HANDLING
+// ============================================================
+const zone = document.getElementById('uploadZone');
+const input = document.getElementById('fileInput');
+const loading = document.getElementById('loading');
+const dashboard = document.getElementById('dashboard');
+
+// Drag & drop
+zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragover')});
+zone.addEventListener('dragleave',()=>zone.classList.remove('dragover'));
+zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('dragover');const f=e.dataTransfer.files[0];if(f)handleFile(f)});
+input.addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0])});
+
+async function handleFile(file){
+  loading.classList.add('active');
+  dashboard.style.display='none';
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf,{type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+    parseData(rows);
+    document.getElementById('uploadPlaceholder').style.display='none';
+    document.getElementById('uploadResult').style.display='block';
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSummary').textContent = `共 ${allRecords.length} 条操作记录 · ${allSectors.length} 个板块`;
+    document.getElementById('headerDate').textContent = file.name.replace(/\.\w+$/,'');
+    document.getElementById('filterBar').style.display = 'flex';
+    document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
+    document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
+    dashboard.style.display='block';
+    renderAll();
+    saveToLocalStorage();
+    syncToSupabase();
+  }catch(e){alert('解析失败：'+e.message);console.error(e)}
+  loading.classList.remove('active');
+}
+
+// ============================================================
+//  DATA PARSER
+// ============================================================
+function parseData(rows){
+  allRecords = [];
+  allSectors = [];
+  let currentSector = null, currentSectorInfo = null;
+
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i];
+    if(!r||r.length===0) continue;
+    const a = r[0], b = r[1];
+
+    // --- sector header ---
+    if(a && typeof a==='string' && a.includes('买') && a.includes('卖') && a.includes('共') && a.includes('差额')){
+      const lines = a.split('\n').map(s=>s.trim()).filter(Boolean);
+      currentSector = lines[0]||'未分类';
+      const info = {name:currentSector};
+      // parse "买44|卖3" and "共47条" and "差额: +9.58w/0.0%"
+      lines.forEach(l=>{
+        let m;
+        if(m=l.match(/买(\d+)/)) info.buyCount=parseInt(m[1]);
+        if(m=l.match(/卖(\d+)/)) info.sellCount=parseInt(m[1]);
+        if(m=l.match(/共(\d+)条/)) info.totalCount=parseInt(m[1]);
+        if(m=l.match(/差额:\s*([+-]?[\d.]+)([wWkK]?)\/?/)){
+          let v=parseFloat(m[1]);const u=m[2].toLowerCase();
+          info.netFlow=v*(u==='w'?10000:u==='k'?1000:1);
+          info.netFlowRaw=l.match(/差额:\s*([^\s]+)/)?.[1]||m[0];
+        }
+        if(m=l.match(/差额.*?\(缺(\d+)\)/)) info.missing=parseInt(m[1]);
+      });
+      currentSectorInfo = info;
+      allSectors.push(info);
+      continue;
+    }
+
+    // --- skip header/footer rows ---
+    if(i<3 || !b) continue;
+
+    const fundRaw = r[2]||'';
+    const amountRaw = r[3]||'';
+    const blogger = r[4]||'--';
+    const monthRet = r[5], yearRet = r[6];
+    const holdingsRaw = r[7]||'';
+    const style = r[8]||'--';
+
+    const opType = classifyOp(b);
+    if(!opType) continue;
+
+    const rec = {
+      sector: currentSector||'未分类',
+      sectorInfo: currentSectorInfo,
+      operation: b,
+      opType: opType,
+      opLabel: getOpLabel(b),
+      fundRaw: fundRaw,
+      fundName: parseFundName(fundRaw),
+      fundEst: parseFundEst(fundRaw),
+      amountRaw: amountRaw,
+      amount: parseAmount(amountRaw),
+      amountPct: parseAmountPct(amountRaw),
+      blogger: blogger,
+      monthReturn: monthRet,
+      yearReturn: yearRet,
+      holdingsRaw: holdingsRaw,
+      holdingsNum: parseHoldings(holdingsRaw),
+      style: style,
+    };
+    allRecords.push(rec);
+  }
+
+  // assign sector record counts
+  allSectors.forEach(s=>{
+    s.records = allRecords.filter(r=>r.sector===s.name);
+    const buys = s.records.filter(r=>r.opType==='buy');
+    const sells = s.records.filter(r=>r.opType==='sell');
+    s.actualBuyCount = buys.length;
+    s.actualSellCount = sells.length;
+    s.actualBuyAmount = buys.reduce((a,r)=>a+r.amount,0);
+    s.actualSellAmount = sells.reduce((a,r)=>a+r.amount,0);
+    // compute net from actual data
+    if(s.netFlow===undefined) s.netFlow = s.actualBuyAmount - s.actualSellAmount;
+  });
+}
+
+function classifyOp(op){
+  if(op==='定'||op==='+') return 'buy';
+  if(op==='卖'||op==='清仓'||(typeof op==='string'&&op.startsWith('减仓'))) return 'sell';
+  return null;
+}
+function getOpLabel(op){
+  if(op==='定') return '定投';
+  if(op==='+') return '加仓';
+  if(op==='卖') return '卖出';
+  if(op==='清仓') return '清仓';
+  if(typeof op==='string'&&op.startsWith('减仓')) return '减仓';
+  return op;
+}
+
+function parseFundName(raw){
+  if(!raw||raw==='-') return '--';
+  const idx = raw.lastIndexOf('/');
+  if(idx>=0&&idx<raw.length-1){
+    let name = raw.substring(idx+1).trim();
+    // sometimes the name has leading numbers/dash that isn't a percentage
+    return name || raw;
+  }
+  return raw.trim();
+}
+function parseFundEst(raw){
+  if(!raw||raw==='-') return null;
+  const m = raw.match(/^([+-]?[\d.]+)%\//);
+  if(m) return parseFloat(m[1]);
+  return null;
+}
+
+function parseAmount(raw){
+  if(!raw||raw==='-'||raw==='--') return 0;
+  let s = raw.trim();
+
+  // Handle "≈" prefix
+  s = s.replace(/^≈/,'');
+
+  // Extract the first numeric part before any '(' or '/'
+  let numPart = s.split(/[(\/]/)[0].trim();
+
+  // Remove trailing non-numeric (like 'K')
+  const unit = numPart.includes('w')?'w':numPart.includes('k')||numPart.includes('K')?'k':'';
+
+  // Check for "0k份" pattern
+  if(/^[\d.]+k份/.test(numPart)){
+    const vm = numPart.match(/^([\d.]+)k/);
+    if(vm) return parseFloat(vm[1])*1000;
+    return 0;
+  }
+
+  // Try "0.01K(0k份*3.4909)" -> extract before '('
+  const paren = s.indexOf('(');
+  let prefix = paren>=0 ? s.substring(0,paren).trim() : s;
+  prefix = prefix.replace(/^≈/,'').trim();
+
+  const units = prefix.match(/^([\d.]+)\s*([wWkK])?/);
+  if(units){
+    let v = parseFloat(units[1]);
+    const u = (units[2]||'').toLowerCase();
+    if(u==='w') v*=10000;
+    else if(u==='k') v*=1000;
+    return Math.round(v);
+  }
+  return 0;
+}
+
+function parseAmountPct(raw){
+  if(!raw) return null;
+  const m = raw.match(/\/([+-]?[\d.]+%)/);
+  return m?m[1]:null;
+}
+
+function parseHoldings(raw){
+  if(!raw||raw==='-'||raw==='--') return 0;
+  const m = raw.match(/^([\d.]+)([wW])?/);
+  if(m){
+    let v=parseFloat(m[1]);
+    if((m[2]||'').toLowerCase()==='w') v*=10000;
+    return v;
+  }
+  return 0;
+}
+
+// ============================================================
+//  AGGREGATION
+// ============================================================
+function getFundStats(records = allRecords){
+  const map = {};
+  records.forEach(r=>{
+    const key = r.fundName+'|||'+r.sector;
+    if(!map[key]) map[key]={fundName:r.fundName,sector:r.sector,buys:[],sells:[],buyBloggers:new Set(),sellBloggers:new Set(),records:[]};
+    map[key].records.push(r);
+    if(r.opType==='buy'){
+      map[key].buys.push(r);
+      map[key].buyBloggers.add(r.blogger);
+    }else{
+      map[key].sells.push(r);
+      map[key].sellBloggers.add(r.blogger);
+    }
+  });
+  return Object.values(map).map(f=>{
+    const buyAmt = f.buys.reduce((a,r)=>a+r.amount,0);
+    const sellAmt = f.sells.reduce((a,r)=>a+r.amount,0);
+    const buyBloggerCount = f.buyBloggers.size;
+    const sellBloggerCount = f.sellBloggers.size;
+    const totalBloggers = new Set([...f.buyBloggers,...f.sellBloggers]).size;
+    f.buyCount = f.buys.length;
+    f.sellCount = f.sells.length;
+    f.buyAmount = buyAmt;
+    f.sellAmount = sellAmt;
+    f.buyBloggerCount = buyBloggerCount;
+    f.sellBloggerCount = sellBloggerCount;
+    f.totalBloggerCount = totalBloggers;
+    f.netAmount = buyAmt - sellAmt;
+    // Consensus score: weighted combination
+    f.consensusBuyScore = buyBloggerCount*3 + f.buys.length*2 + Math.log(buyAmt+1)*0.5;
+    f.consensusSellScore = sellBloggerCount*3 + f.sells.length*2 + Math.log(sellAmt+1)*0.5;
+    // Sentiment: 1=all buy, -1=all sell
+    f.sentiment = totalBloggers>0 ? (buyBloggerCount-sellBloggerCount)/totalBloggers : 0;
+    return f;
+  });
+}
+
+
+// ============================================================
+//  RENDER
+// ============================================================
+function renderAll(){
+  applyFilters();
+  // Update filter hint
+  const total = allRecords.length;
+  const shown = filteredData.records.length;
+  const hint = document.getElementById('filterHint');
+  if(shown === total) hint.textContent = '显示全部记录';
+  else hint.textContent = `过滤后显示 ${shown} / ${total} 条记录`;
+  renderSummary();
+  renderSectorChart();
+  renderOpChart();
+  renderTopLists();
+  renderSectorTable();
+  renderDetailTable();
+}
+
+/* ---------- Summary ---------- */
+function renderSummary(){
+  const records = filteredData.records;
+  const sectors = filteredData.sectors;
+  const buys = records.filter(r=>r.opType==='buy');
+  const sells = records.filter(r=>r.opType==='sell');
+  const totalBuy = buys.reduce((a,r)=>a+r.amount,0);
+  const totalSell = sells.reduce((a,r)=>a+r.amount,0);
+  const net = totalBuy - totalSell;
+  const bloggers = new Set(records.map(r=>r.blogger));
+  const funds = new Set(records.map(r=>r.fundName));
+
+  document.getElementById('summaryGrid').innerHTML = `
+    <div class="summary-card"><div class="label">总操作数</div><div class="value blue">${records.length}</div><div class="sub-text">${buys.length} 笔买入 · ${sells.length} 笔卖出</div></div>
+    <div class="summary-card"><div class="label">买入总金额</div><div class="value green">${fmt(totalBuy)}</div><div class="sub-text">${buys.length} 笔操作</div></div>
+    <div class="summary-card"><div class="label">卖出总金额</div><div class="value red">${fmt(totalSell)}</div><div class="sub-text">${sells.length} 笔操作</div></div>
+    <div class="summary-card"><div class="label">净资金流向</div><div class="value ${net>=0?'green':'red'}">${net>=0?'+':''}${fmt(net)}</div><div class="sub-text">买入 ${net >= 0 ? '>' : '<'} 卖出</div></div>
+    <div class="summary-card"><div class="label">活跃博主</div><div class="value blue">${bloggers.size}</div><div class="sub-text">覆盖 ${funds.size} 只基金</div></div>
+    <div class="summary-card"><div class="label">板块数量</div><div class="value blue">${sectors.length}</div><div class="sub-text">净流入 ${sectors.filter(s=>(s.netFlow||0)>=0).length} 个</div></div>
+  `;
+}
+
+/* ---------- Sector Chart ---------- */
+let sectorChartInstance = null;
+function renderSectorChart(){
+  const sectors = filteredData.sectors;
+  const ctx = document.getElementById('sectorChart').getContext('2d');
+  if(sectorChartInstance) sectorChartInstance.destroy();
+
+  const sorted = [...sectors].filter(s=>s.actualBuyCount>0||s.actualSellCount>0).sort((a,b)=>Math.abs(b.netFlow||0)-Math.abs(a.netFlow||0)).slice(0,20);
+  const labels = sorted.map(s=>s.name.length>6?s.name.substring(0,6)+'…':s.name);
+  const buyData = sorted.map(s=>s.actualBuyAmount||0);
+  const sellData = sorted.map(s=>s.actualSellAmount||0);
+
+  sectorChartInstance = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'买入金额',data:buyData,backgroundColor:'rgba(16,185,129,.7)',borderColor:'#10b981',borderWidth:1,borderRadius:3},
+        {label:'卖出金额',data:sellData,backgroundColor:'rgba(239,68,68,.7)',borderColor:'#ef4444',borderWidth:1,borderRadius:3}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{boxWidth:12,font:{size:12}}}},
+      scales:{
+        x:{ticks:{font:{size:10}},grid:{display:false}},
+        y:{beginAtZero:true,ticks:{callback:v=>fmtShort(v),font:{size:10}}}
+      }
+    }
+  });
+}
+
+/* ---------- Op Chart ---------- */
+let opChartInstance = null;
+function renderOpChart(){
+  const records = filteredData.records;
+  const ctx = document.getElementById('opChart').getContext('2d');
+  if(opChartInstance) opChartInstance.destroy();
+
+  const counts = {};
+  records.forEach(r=>{
+    // 减仓、清仓合并为卖出
+    let label = r.opLabel;
+    if(label === '减仓' || label === '清仓') label = '卖出';
+    counts[label] = (counts[label]||0) + 1;
+  });
+  const order = ['加仓','定投','卖出'];
+  const extra = Object.keys(counts).filter(k=>!order.includes(k)).sort();
+  const labels = [...order,...extra].filter(k=>counts[k]);
+  const data = labels.map(k=>counts[k]);
+  const colors = ['#10b981','#3b82f6','#ef4444','#f59e0b','#8b5cf6','#ec4899','#14b8a6'];
+
+  opChartInstance = new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels,
+      datasets:[{data,backgroundColor:colors.slice(0,labels.length),borderWidth:2,borderColor:'#fff'}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:12}},
+        tooltip:{callbacks:{label:function(ctx){const total=filteredData.records.length;return ctx.label+': '+ctx.raw+' 笔 ('+(ctx.raw/total*100).toFixed(1)+'%)';}}}
+      }
+    }
+  });
+}
+
+/* ---------- Top Lists ---------- */
+let buySortMode = 'score';
+let sellSortMode = 'score';
+
+function setBuySort(mode){
+  buySortMode = mode;
+  document.querySelectorAll('[data-buy-sort]').forEach(b=>b.classList.toggle('active',b.dataset.buySort===mode));
+  renderTopLists();
+}
+function setSellSort(mode){
+  sellSortMode = mode;
+  document.querySelectorAll('[data-sell-sort]').forEach(b=>b.classList.toggle('active',b.dataset.sellSort===mode));
+  renderTopLists();
+}
+
+function getBuySortFn(mode){
+  if(mode==='people') return (a,b)=>b.buyBloggerCount-a.buyBloggerCount || b.buyAmount-b.buyAmount;
+  if(mode==='amount') return (a,b)=>b.buyAmount-a.buyAmount || b.buyBloggerCount-a.buyBloggerCount;
+  return (a,b)=>b.consensusBuyScore-a.consensusBuyScore;
+}
+function getSellSortFn(mode){
+  if(mode==='people') return (a,b)=>b.sellBloggerCount-a.sellBloggerCount || b.sellAmount-b.sellAmount;
+  if(mode==='amount') return (a,b)=>b.sellAmount-a.sellAmount || b.sellBloggerCount-a.sellBloggerCount;
+  return (a,b)=>b.consensusSellScore-a.consensusSellScore;
+}
+
+function renderTopLists(){
+  const fundStats = getFundStats(filteredData.records);
+  const activeFunds = fundStats.filter(f=>(f.buyCount+f.sellCount)>=2);
+
+  const topBuys = [...activeFunds].sort(getBuySortFn(buySortMode)).slice(0,10);
+  document.getElementById('topBuys').innerHTML = topBuys.map((f,i)=>`
+    <div class="top-item" onclick='openFundModal("${escHtml(f.fundName)}","${escHtml(f.sector)}")' style="cursor:pointer">
+      <div class="rank ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">#${i+1}</div>
+      <div class="info">
+        <div class="name">${escHtml(f.fundName)}</div>
+        <div class="meta">${escHtml(f.sector)} · ${f.buyBloggerCount} 位博主买入 · ${f.buyCount} 笔</div>
+      </div>
+      <div class="stats">
+        <div class="num green">${fmtShort(f.buyAmount)}</div>
+        <div class="lbl">买入金额</div>
+      </div>
+    </div>
+  `).join('');
+
+  const topSells = [...activeFunds].sort(getSellSortFn(sellSortMode)).slice(0,10);
+  document.getElementById('topSells').innerHTML = topSells.map((f,i)=>`
+    <div class="top-item" onclick='openFundModal("${escHtml(f.fundName)}","${escHtml(f.sector)}")' style="cursor:pointer">
+      <div class="rank ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">#${i+1}</div>
+      <div class="info">
+        <div class="name">${escHtml(f.fundName)}</div>
+        <div class="meta">${escHtml(f.sector)} · ${f.sellBloggerCount} 位博主卖出 · ${f.sellCount} 笔</div>
+      </div>
+      <div class="stats">
+        <div class="num red">${fmtShort(f.sellAmount)}</div>
+        <div class="lbl">卖出金额</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ---------- Sector Table ---------- */
+function renderSectorTable(){
+  const sectors = filteredData.sectors;
+  const active = sectors.filter(s=>s.actualBuyCount>0||s.actualSellCount>0).sort((a,b)=>Math.abs(b.netFlow||0)-Math.abs(a.netFlow||0));
+  document.getElementById('sectorCount').textContent = active.length+'个';
+  const show = (sectorExpandAll || active.length <= 20) ? active : active.slice(0, 20);
+  const btn = document.getElementById('sectorExpandBtn');
+  if(active.length <= 20) btn.style.display = 'none';
+  else {
+    btn.style.display = 'block';
+    btn.textContent = sectorExpandAll ? '收起 (显示前20个)' : `展开全部 (${active.length}个)`;
+  }
+  const maxFlow = Math.max(...active.map(s=>Math.abs(s.netFlow||0)),1);
+  document.getElementById('sectorTableBody').innerHTML = show.map(s=>{
+    const nf = s.netFlow||0;
+    const pct = Math.abs(nf)/maxFlow*100;
+    const dir = nf>=0?'流入':'流出';
+    const cls = nf>=0?'green':'red';
+    return `<tr>
+      <td class="sector-name" onclick="openSectorModal('${escHtml(s.name)}')">${escHtml(s.name)}</td>
+      <td><span class="tag buy">${s.actualBuyCount}笔</span></td>
+      <td><span class="tag sell">${s.actualSellCount}笔</span></td>
+      <td style="color:var(--${cls});font-weight:600">${nf>=0?'+':''}${fmt(nf)}</td>
+      <td><span class="tag ${cls}">${dir}</span></td>
+      <td class="bar-cell">
+        <div class="bar-bg"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
+        <div class="bar-label">${fmtShort(nf)}</div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleSectorExpand(){
+  sectorExpandAll = !sectorExpandAll;
+  renderSectorTable();
+}
+
+/* ---------- Detail Table ---------- */
+function renderDetailTable(){
+  const records = filteredData.records;
+  const q = document.getElementById('filterInput').value.trim().toLowerCase();
+  const op = document.getElementById('filterOp').value;
+  const sec = document.getElementById('filterSector').value;
+
+  // populate sector filter
+  const sel = document.getElementById('filterSector');
+  const currentVal = sel.value;
+  const sectors = [...new Set(records.map(r=>r.sector))].sort();
+  sel.innerHTML = '<option value="">全部板块</option>'+sectors.map(s=>`<option value="${escHtml(s)}"${s===currentVal?' selected':''}>${escHtml(s)}</option>`);
+
+  let filtered = records;
+  if(q) filtered = filtered.filter(r=>r.fundName.toLowerCase().includes(q)||r.blogger.toLowerCase().includes(q)||r.sector.toLowerCase().includes(q));
+  if(op) filtered = filtered.filter(r=>r.opType===op);
+  if(sec) filtered = filtered.filter(r=>r.sector===sec);
+
+  // sort
+  const {key,dir} = currentSort;
+  filtered.sort((a,b)=>{
+    let va=a[key], vb=b[key];
+    if(typeof va==='string') va=va.toLowerCase();
+    if(typeof vb==='string') vb=vb.toLowerCase();
+    if(va<vb) return -1*dir;
+    if(va>vb) return 1*dir;
+    return 0;
+  });
+
+  document.getElementById('detailCount').textContent = filtered.length+'条';
+  document.getElementById('detailTableBody').innerHTML = filtered.map(r=>{
+    const tagCls = r.opType==='buy'?'buy':'sell';
+    return `<tr>
+      <td>${escHtml(r.sector)}</td>
+      <td><span class="tag ${tagCls}">${escHtml(r.opLabel)}</span></td>
+      <td title="${escHtml(r.fundRaw)}">${escHtml(r.fundName)}</td>
+      <td>${fmt(r.amount)}${r.amountPct?' <span style="color:var(--muted);font-size:12px">'+escHtml(r.amountPct)+'</span>':''}</td>
+      <td><strong>${escHtml(r.blogger)}</strong></td>
+      <td>${r.monthReturn!=null?escHtml(String(r.monthReturn)):'--'}</td>
+      <td>${r.yearReturn!=null?escHtml(String(r.yearReturn)):'--'}</td>
+      <td>${r.holdingsRaw?escHtml(r.holdingsRaw):'--'}</td>
+      <td style="font-size:12px;color:var(--muted)">${escHtml(r.style)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function sortDetail(key){
+  if(currentSort.key===key) currentSort.dir *= -1;
+  else {currentSort.key=key; currentSort.dir=-1;}
+  renderDetailTable();
+}
+
+// ============================================================
+//  FUND MODAL
+// ============================================================
+function openFundModal(fundName,sector){
+  const records = filteredData.records.filter(r=>r.fundName===fundName&&r.sector===sector);
+  document.getElementById('modalTitle').textContent = fundName;
+  document.getElementById('modalMeta').textContent = `板块: ${sector} · 共 ${records.length} 条操作记录`;
+  document.getElementById('modalBody').innerHTML = records.map(r=>{
+    const tagCls = r.opType==='buy'?'buy':'sell';
+    return `<tr>
+      <td><strong>${escHtml(r.blogger)}</strong></td>
+      <td><span class="tag ${tagCls}">${escHtml(r.opLabel)}</span></td>
+      <td>${fmt(r.amount)}</td>
+      <td>${r.amountPct||'--'}</td>
+      <td>${r.holdingsRaw||'--'}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('fundModal').classList.add('active');
+}
+function closeModal(){
+  document.getElementById('fundModal').classList.remove('active');
+}
+function closeSectorModal(){
+  document.getElementById('sectorModal').classList.remove('active');
+}
+function openSectorModal(sectorName){
+  sectorModalSector = sectorName;
+  sectorModalSort = {key:'total',dir:-1};
+  const records = filteredData.records.filter(r=>r.sector===sectorName);
+  const fmap = {};
+  records.forEach(r=>{
+    const key = r.fundName;
+    if(!fmap[key]) fmap[key]={fundName:r.fundName,buys:0,sells:0,buyAmt:0,sellAmt:0,bloggers:new Set()};
+    const f=fmap[key];
+    if(r.opType==='buy'){f.buys++;f.buyAmt+=r.amount;}
+    else{f.sells++;f.sellAmt+=r.amount;}
+    f.bloggers.add(r.blogger);
+  });
+  sectorModalFunds = Object.values(fmap).map(f=>({fundName:f.fundName,buys:f.buys,sells:f.sells,buyAmt:f.buyAmt,sellAmt:f.sellAmt,bloggerCount:f.bloggers.size,total:f.buys+f.sells}));
+  const bloggers = new Set(records.map(r=>r.blogger));
+  document.getElementById('sectorModalTitle').textContent = sectorName;
+  document.getElementById('sectorModalMeta').textContent = records.length+' 条操作 · '+sectorModalFunds.length+' 只基金 · '+bloggers.size+' 位博主';
+  renderSectorModalBody();
+  document.getElementById('sectorModal').classList.add('active');
+}
+function sectorModalSortBy(key){
+  if(sectorModalSort.key===key) sectorModalSort.dir *= -1;
+  else {sectorModalSort.key=key; sectorModalSort.dir=-1;}
+  renderSectorModalBody();
+}
+function renderSectorModalBody(){
+  const funds = [...sectorModalFunds].sort((a,b)=>{
+    let va=a[sectorModalSort.key], vb=b[sectorModalSort.key];
+    if(typeof va==='string') va=va.toLowerCase();
+    if(typeof vb==='string') vb=vb.toLowerCase();
+    if(va<vb) return -1*sectorModalSort.dir;
+    if(va>vb) return 1*sectorModalSort.dir;
+    return 0;
+  });
+  document.getElementById('sectorModalBody').innerHTML = funds.map(f=>{
+    const net = f.buyAmt - f.sellAmt;
+    const dir = net>=0?'↗ 净买入':'↘ 净卖出';
+    const cls = net>=0?'green':'red';
+    return '<tr>'+
+      '<td><strong style="cursor:pointer;color:var(--blue)" onclick="openFundModal(\''+escHtml(f.fundName)+'\',\''+escHtml(sectorModalSector)+'\')">'+escHtml(f.fundName)+'</strong></td>'+
+      '<td><span class="tag buy">'+f.buys+'笔</span></td>'+
+      '<td><span class="tag sell">'+f.sells+'笔</span></td>'+
+      '<td style="color:var(--green)">'+fmt(f.buyAmt)+'</td>'+
+      '<td style="color:var(--red)">'+fmt(f.sellAmt)+'</td>'+
+      '<td>'+f.bloggerCount+' 位</td>'+
+      '<td style="color:var(--'+cls+');font-weight:600">'+dir+' '+fmtShort(Math.abs(net))+'</td>'+
+    '</tr>';
+  }).join('');
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeSectorModal();}});
+
+// ============================================================
+//  UTILITIES
+// ============================================================
+function fmt(n){
+  if(!n||Math.abs(n)<1) return n?'¥'+n.toFixed(2):'¥0';
+  const abs = Math.abs(n);
+  let s;
+  if(abs>=10000) s = (n/10000).toFixed(2).replace(/\.?0+$/,'')+'万';
+  else if(abs>=1000) s = (n/1000).toFixed(2).replace(/\.?0+$/,'')+'千';
+  else s = n.toFixed(2);
+  return '¥'+s;
+}
+function fmtShort(n){
+  if(!n||Math.abs(n)<1) return '¥0';
+  const abs = Math.abs(n);
+  if(abs>=10000) return (n/10000).toFixed(1).replace(/\.0$/,'')+'万';
+  if(abs>=1000) return (n/1000).toFixed(1).replace(/\.0$/,'')+'千';
+  return '¥'+n.toFixed(0);
+}
+function escHtml(s){
+  if(s==null) return '';
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+// Alias for onclick single-quote contexts
+function escAttr(s){ return escHtml(s); }
+
+// ============================================================
+//  INIT
+// ============================================================
+document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
+
+// Auto-connect Supabase if config exists, then try loading data
+(async function initApp(){
+  const cfg = loadSupabaseConfig();
+  if(cfg){
+    try {
+      const client = supabase.createClient(cfg.url, cfg.key);
+      const { error } = await client.from('records').select('id', { count: 'exact', head: true });
+      if(!error){
+        supabaseClient = client;
+        supabaseConnected = true;
+        updateSupabaseStatus();
+      }
+    } catch(e) { /* silent fail, fall through */ }
+  }
+  if(supabaseConnected){
+    const loaded = await loadFromSupabase();
+    if(!loaded) console.log('🐡 数据库已连接，但无数据，请上传文件');
+  } else if(!loadFromLocalStorage()){
+    console.log('🐡 泡泡菌操作分析 · 请上传 Excel 文件开始分析');
+  }
+})();
+</script>
+</body>
+</html>
