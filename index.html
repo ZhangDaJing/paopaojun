@@ -594,26 +594,88 @@ async function syncToSupabase(sourceFileName){
   }
 }
 
-/** Load records from Supabase (replaces allRecords) */
-async function loadFromSupabase(){
+/** Fetch available dates and counts from Supabase (lightweight) */
+async function fetchAvailableDates(){
+  availableDates = [];
+  dateCounts = {};
+  if(!supabaseClient || !supabaseConnected) return;
+  try {
+    const { data, error } = await supabaseClient.from('records').select('date').limit(100000);
+    if(error) throw error;
+    if(data) data.forEach(r => { if(r.date) dateCounts[r.date] = (dateCounts[r.date]||0) + 1; });
+    availableDates = Object.keys(dateCounts).sort();
+    console.log('🐡 可用日期: '+availableDates.length+' 个');
+  } catch(e){ console.error('Fetch dates failed:', e); }
+}
+
+/** Load one date's records from Supabase (uses cache) */
+async function loadFromSupabase(dateStr){
+  if(!supabaseClient || !supabaseConnected) return false;
+  if(!dateStr) return false;
+  try {
+    if(recordsCache[dateStr]){
+      allRecords = recordsCache[dateStr];
+    } else {
+      const { data, error } = await supabaseClient.from('records').select('*').eq('date', dateStr).limit(100000);
+      if(error) throw error;
+      if(!data || data.length === 0) return false;
+      allRecords = data.map(r=>({
+        date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
+        fundRaw: r.fund_raw, fundName: r.fund_name, fundEst: r.fund_est,
+        amountRaw: r.amount_raw, amount: r.amount, amountPct: r.amount_pct,
+        blogger: r.blogger, monthReturn: r.month_return, yearReturn: r.year_return,
+        holdingsRaw: r.holdings_raw, holdingsNum: r.holdings_num, style: r.style
+      }));
+      recordsCache[dateStr] = allRecords;
+    }
+    const smap = {};
+    allRecords.forEach(r=>{
+      if(!smap[r.sector]) smap[r.sector]={name:r.sector,records:[],actualBuyCount:0,actualSellCount:0,actualBuyAmount:0,actualSellAmount:0,netFlow:0};
+      const s=smap[r.sector]; s.records.push(r);
+      if(r.opType==='buy'){s.actualBuyCount++;s.actualBuyAmount+=r.amount;}
+      else{s.actualSellCount++;s.actualSellAmount+=r.amount;}
+      s.netFlow=s.actualBuyAmount-s.actualSellAmount;
+    });
+    allSectors = Object.values(smap);
+    document.getElementById('fileName').textContent = '云端数据';
+    document.getElementById('importStatus').textContent = '📂 云端数据 · '+formatDateLabel(dateStr)+' · '+allRecords.length+'条';
+    document.getElementById('importStatus').style.display = 'inline';
+    document.getElementById('importBtn').textContent = '📂 重新导入';
+    document.getElementById('headerDate').textContent = formatDateLabel(dateStr);
+    document.getElementById('filterBar').style.display='flex';
+    document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
+    document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
+    document.getElementById('cacheHint').style.display='inline';
+    document.getElementById('cacheHint').textContent = '☁️ 云端数据';
+    dashboard.style.display='block';
+    renderAll();
+    return true;
+  } catch(e){
+    console.error('Supabase load failed:', e);
+    return false;
+  }
+}
+
+/** Load ALL records from Supabase (for "全部日期" view) */
+async function loadAllFromSupabase(){
   if(!supabaseClient || !supabaseConnected) return false;
   try {
-    const { data, error } = await supabaseClient.from('records').select('*').order('id', { ascending: true }).limit(100000);
-    if(error) throw error;
-    if(!data || data.length === 0) return false;
-    console.log('🐡 从数据库加载了 '+data.length+' 条记录');
-    // Build set of available dates
-    const dateSet = new Set(data.map(r=>r.date).filter(Boolean));
-    const dates = [...dateSet].sort();
-    // Map database fields back to app format
-    allRecords = data.map(r=>({
-      date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
-      fundRaw: r.fund_raw, fundName: r.fund_name, fundEst: r.fund_est,
-      amountRaw: r.amount_raw, amount: r.amount, amountPct: r.amount_pct,
-      blogger: r.blogger, monthReturn: r.month_return, yearReturn: r.year_return,
-      holdingsRaw: r.holdings_raw, holdingsNum: r.holdings_num, style: r.style
-    }));
-    // Recompute sectors
+    const uncached = availableDates.filter(d => !recordsCache[d]);
+    if(uncached.length > 0){
+      const { data, error } = await supabaseClient.from('records').select('*').order('id', { ascending: true }).limit(100000);
+      if(error) throw error;
+      if(!data || data.length === 0) return false;
+      allRecords = data.map(r=>({
+        date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
+        fundRaw: r.fund_raw, fundName: r.fund_name, fundEst: r.fund_est,
+        amountRaw: r.amount_raw, amount: r.amount, amountPct: r.amount_pct,
+        blogger: r.blogger, monthReturn: r.month_return, yearReturn: r.year_return,
+        holdingsRaw: r.holdings_raw, holdingsNum: r.holdings_num, style: r.style
+      }));
+    } else {
+      allRecords = [];
+      availableDates.forEach(d => { allRecords.push(...recordsCache[d]); });
+    }
     const smap = {};
     allRecords.forEach(r=>{
       if(!smap[r.sector]) smap[r.sector]={name:r.sector,records:[],actualBuyCount:0,actualSellCount:0,actualBuyAmount:0,actualSellAmount:0,netFlow:0};
@@ -627,7 +689,7 @@ async function loadFromSupabase(){
     document.getElementById('importStatus').textContent = '📂 云端数据 · '+allRecords.length+'条';
     document.getElementById('importStatus').style.display = 'inline';
     document.getElementById('importBtn').textContent = '📂 重新导入';
-    document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
+    document.getElementById('headerDate').textContent = '全部日期';
     document.getElementById('filterBar').style.display='flex';
     document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
     document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
@@ -637,7 +699,7 @@ async function loadFromSupabase(){
     renderAll();
     return true;
   } catch(e){
-    console.error('Supabase load failed:', e);
+    console.error('Supabase load all failed:', e);
     return false;
   }
 }
