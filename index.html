@@ -454,6 +454,8 @@ let currentSort = {key:'amount',dir:-1};
 let sectorExpandAll = false;
 let supabaseClient = null;
 let supabaseConnected = false;
+const DEFAULT_SUPABASE_URL = 'https://pmsnjuumolqfzbreypfo.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'sb_publishable_CXVgwnfpCfVrpMSkgWiX4Q_B4WkhZ72';
 let sectorModalFunds = [];
 let sectorModalSector = '';
 let sectorModalSort = {key:'total',dir:-1};
@@ -1547,20 +1549,22 @@ window.addEventListener('resize', function(){
 // ============================================================
 document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
 
-// Auto-connect Supabase if config exists, then try loading data
+// Auto-connect Supabase with saved config or hardcoded defaults
 (async function initApp(){
-  const cfg = loadSupabaseConfig();
-  if(cfg){
-    try {
-      const client = supabase.createClient(cfg.url, cfg.key);
-      const { error } = await client.from('records').select('id', { count: 'exact', head: true });
-      if(!error){
-        supabaseClient = client;
-        supabaseConnected = true;
-        updateSupabaseStatus();
-      }
-    } catch(e) { /* silent fail, fall through */ }
-  }
+  // Try connecting with saved config first, then fall back to defaults
+  let cfg = loadSupabaseConfig();
+  if(!cfg) cfg = {url: DEFAULT_SUPABASE_URL, key: DEFAULT_SUPABASE_KEY};
+  try {
+    const client = supabase.createClient(cfg.url, cfg.key);
+    const { error } = await client.from('records').select('id', { count: 'exact', head: true });
+    if(!error){
+      supabaseClient = client;
+      supabaseConnected = true;
+      updateSupabaseStatus();
+      // Save defaults to localStorage so settings modal shows them
+      saveSupabaseConfig(cfg.url, cfg.key);
+    }
+  } catch(e) { /* silent fail, fall through */ }
   if(supabaseConnected){
     const loaded = await loadFromSupabase();
     if(!loaded) console.log('🐡 数据库已连接，但无数据，请上传文件');
