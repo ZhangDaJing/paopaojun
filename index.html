@@ -630,16 +630,14 @@ function disconnectSupabase(){
   closeSettings();
 }
 
-/** Upload all records to Supabase (batch insert) */
-async function syncToSupabase(){
+/** Upload records for one file to Supabase (batch insert) */
+async function syncToSupabase(sourceFileName){
   if(!supabaseClient || !supabaseConnected) return false;
   try {
-    const sourceFile = document.getElementById('fileName').textContent;
-    const dateStr = extractDateFromFileName(sourceFile);
     // Delete existing records for the same source file (re-upload)
-    await supabaseClient.from('records').delete().eq('source_file', sourceFile);
+    await supabaseClient.from('records').delete().eq('source_file', sourceFileName);
     const records = allRecords.map(r=>({
-      date: r.date, source_file: sourceFile,
+      date: r.date, source_file: sourceFileName,
       sector: r.sector, operation: r.operation, op_type: r.opType, op_label: r.opLabel,
       fund_raw: r.fundRaw, fund_name: r.fundName, fund_est: r.fundEst,
       amount_raw: r.amountRaw, amount: r.amount, amount_pct: r.amountPct,
@@ -777,6 +775,8 @@ async function handleFiles(files){
       accumulatedRecords.push(...allRecords);
       allSectors.forEach(s => sectorNameSet.add(s.name));
       fileLabels.push(file.name.replace(/\.\w+$/,''));
+      // Sync this file individually to Supabase
+      await syncToSupabase(file.name.replace(/\.\w+$/,''));
     }
 
     // Combine all records and rebuild sectors from scratch
@@ -808,7 +808,6 @@ async function handleFiles(files){
     selectedDate = null;
     renderAll();
     saveToLocalStorage();
-    syncToSupabase();
   }catch(e){alert('解析失败：'+e.message);console.error(e)}
   loading.classList.remove('active');
 }
