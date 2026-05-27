@@ -563,6 +563,25 @@ function disconnectSupabase(){
   closeSettings();
 }
 
+/** Fetch all rows from Supabase using pagination to bypass server-side row limits */
+async function fetchAllFromSupabase(columns, queryModifier = null){
+  if(!supabaseClient || !supabaseConnected) return [];
+  const pageSize = 900;
+  let start = 0;
+  let allData = [];
+  while(true){
+    let query = supabaseClient.from('records').select(columns).range(start, start + pageSize - 1);
+    if(queryModifier) query = queryModifier(query);
+    const { data, error } = await query;
+    if(error) throw error;
+    if(!data || data.length === 0) break;
+    allData.push(...data);
+    if(data.length < pageSize) break;
+    start += pageSize;
+  }
+  return allData;
+}
+
 /** Upload records for one file to Supabase (batch insert) */
 async function syncToSupabase(sourceFileName){
   if(!supabaseClient || !supabaseConnected) return false;
@@ -600,11 +619,11 @@ async function fetchAvailableDates(){
   dateCounts = {};
   if(!supabaseClient || !supabaseConnected) return;
   try {
-    const { data, error } = await supabaseClient.from('records').select('date').limit(100000);
-    if(error) throw error;
+    const data = await fetchAllFromSupabase('date');
     if(data) data.forEach(r => { if(r.date) dateCounts[r.date] = (dateCounts[r.date]||0) + 1; });
     availableDates = Object.keys(dateCounts).sort();
-    console.log('🐡 可用日期: '+availableDates.length+' 个');
+    const total = Object.values(dateCounts).reduce((a,b)=>a+b, 0);
+    console.log('🐡 可用日期: '+availableDates.length+' 个, 总计 '+total+' 条');
   } catch(e){ console.error('Fetch dates failed:', e); }
 }
 
@@ -616,8 +635,7 @@ async function loadFromSupabase(dateStr){
     if(recordsCache[dateStr]){
       allRecords = recordsCache[dateStr];
     } else {
-      const { data, error } = await supabaseClient.from('records').select('*').eq('date', dateStr).limit(100000);
-      if(error) throw error;
+      const data = await fetchAllFromSupabase('*', q => q.eq('date', dateStr));
       if(!data || data.length === 0) return false;
       allRecords = data.map(r=>({
         date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
@@ -662,8 +680,7 @@ async function loadAllFromSupabase(){
   try {
     const uncached = availableDates.filter(d => !recordsCache[d]);
     if(uncached.length > 0){
-      const { data, error } = await supabaseClient.from('records').select('*').order('id', { ascending: true }).limit(100000);
-      if(error) throw error;
+      const data = await fetchAllFromSupabase('*', q => q.order('id', { ascending: true }));
       if(!data || data.length === 0) return false;
       allRecords = data.map(r=>({
         date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
