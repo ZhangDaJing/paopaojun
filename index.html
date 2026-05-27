@@ -639,7 +639,7 @@ async function syncToSupabase(){
     // Delete existing records for the same source file (re-upload)
     await supabaseClient.from('records').delete().eq('source_file', sourceFile);
     const records = allRecords.map(r=>({
-      date: dateStr, source_file: sourceFile,
+      date: r.date, source_file: sourceFile,
       sector: r.sector, operation: r.operation, op_type: r.opType, op_label: r.opLabel,
       fund_raw: r.fundRaw, fund_name: r.fundName, fund_est: r.fundEst,
       amount_raw: r.amountRaw, amount: r.amount, amount_pct: r.amountPct,
@@ -654,7 +654,8 @@ async function syncToSupabase(){
       if(error) throw error;
     }
     document.getElementById('dbStatusIndicator').style.display = 'inline';
-    document.getElementById('dbStatusIndicator').title = '已同步 '+records.length+' 条记录 ('+formatDateLabel(dateStr)+')';
+    const dates = [...new Set(records.map(r=>r.date))].sort().map(d=>formatDateLabel(d));
+    document.getElementById('dbStatusIndicator').title = '已同步 '+records.length+' 条记录 ('+dates.join(', ')+')';
     return true;
   } catch(e){
     console.error('Supabase sync failed:', e);
