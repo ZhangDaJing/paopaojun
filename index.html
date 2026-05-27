@@ -563,33 +563,32 @@ function disconnectSupabase(){
   closeSettings();
 }
 
-/** Fetch rows from Supabase with a large range to bypass server row limits.
- *  For date queries (lightweight, many rows) this is a single fast call.
- *  For full-data queries with many rows, use fetchAllFromSupabasePaginated instead. */
+/** Fetch all rows from Supabase with parallel paginated requests.
+ *  Makes multiple page requests in parallel to minimize wall-clock time
+ *  when the Supabase server has high latency (e.g. different geographic region). */
 async function fetchAllFromSupabase(columns, queryModifier = null){
   if(!supabaseClient || !supabaseConnected) return [];
-  let query = supabaseClient.from('records').select(columns).range(0, 99999);
-  if(queryModifier) query = queryModifier(query);
-  const { data, error } = await query;
-  if(error) throw error;
-  return data || [];
-}
-
-/** Paginated version — only used by loadAllFromSupabase() where row count could be very large */
-async function fetchAllFromSupabasePaginated(columns, queryModifier = null){
-  if(!supabaseClient || !supabaseConnected) return [];
   const pageSize = 1000;
+  const BATCH = 5; // Request 5 pages (5000 rows) in ONE round-trip
   let start = 0;
   let allData = [];
   while(true){
-    let query = supabaseClient.from('records').select(columns).range(start, start + pageSize - 1);
-    if(queryModifier) query = queryModifier(query);
-    const { data, error } = await query;
-    if(error) throw error;
-    if(!data || data.length === 0) break;
-    allData.push(...data);
-    if(data.length < pageSize) break;
-    start += pageSize;
+    const promises = [];
+    for(let i = 0; i < BATCH; i++){
+      let q = supabaseClient.from('records').select(columns).range(start + i * pageSize, start + (i + 1) * pageSize - 1);
+      if(queryModifier) q = queryModifier(q);
+      promises.push(q);
+    }
+    const results = await Promise.all(promises);
+    let batchHasData = false;
+    for(const res of results){
+      if(res.error) throw res.error;
+      if(!res.data || res.data.length === 0) break;
+      allData.push(...res.data);
+      batchHasData = true;
+    }
+    if(!batchHasData) break;
+    start += BATCH * pageSize;
   }
   return allData;
 }
@@ -631,7 +630,7 @@ async function fetchAvailableDates(){
   dateCounts = {};
   if(!supabaseClient || !supabaseConnected) return;
   try {
-    const data = await fetchAllFromSupabasePaginated('date');
+    const data = await fetchAllFromSupabase('date');
     if(data) data.forEach(r => { if(r.date) dateCounts[r.date] = (dateCounts[r.date]||0) + 1; });
     availableDates = Object.keys(dateCounts).sort();
     const total = Object.values(dateCounts).reduce((a,b)=>a+b, 0);
@@ -647,7 +646,7 @@ async function loadFromSupabase(dateStr){
     if(recordsCache[dateStr]){
       allRecords = recordsCache[dateStr];
     } else {
-      const data = await fetchAllFromSupabasePaginated('*', q => q.eq('date', dateStr));
+      const data = await fetchAllFromSupabase('*', q => q.eq('date', dateStr));
       if(!data || data.length === 0) return false;
       allRecords = data.map(r=>({
         date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
@@ -692,7 +691,7 @@ async function loadAllFromSupabase(){
   try {
     const uncached = availableDates.filter(d => !recordsCache[d]);
     if(uncached.length > 0){
-      const data = await fetchAllFromSupabasePaginated('*', q => q.order('id', { ascending: true }));
+      const data = await fetchAllFromSupabase('*', q => q.order('id', { ascending: true }));
       if(!data || data.length === 0) return false;
       allRecords = data.map(r=>({
         date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
