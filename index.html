@@ -53,6 +53,14 @@ header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radi
 .filter-btn .badge-count{display:inline-block;background:var(--border);color:var(--muted);font-size:11px;padding:0 6px;border-radius:8px;font-weight:600}
 .filter-btn.active .badge-count{background:var(--blue);color:#fff}
 
+/* ====== Date Selector ====== */
+.date-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;padding:10px 16px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow)}
+.date-bar .label{font-size:13px;font-weight:600;color:var(--text);margin-right:2px}
+.date-btn{padding:5px 14px;border:1px solid var(--border);border-radius:16px;background:transparent;font-size:13px;cursor:pointer;color:var(--text);transition:.2s;user-select:none}
+.date-btn:hover{border-color:#1e3a5f;color:#1e3a5f}
+.date-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+.date-btn .count{font-size:11px;opacity:.7;margin-left:3px}
+
 /* ====== Summary Cards ====== */
 .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
 .summary-card{background:var(--card);border-radius:var(--radius);padding:18px 16px;box-shadow:var(--shadow)}
@@ -232,6 +240,12 @@ header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radi
     <span style="font-size:12px;color:var(--muted);margin-left:4px" id="filterHint">显示全部记录</span>
   </div>
 
+  <!-- Date Selector -->
+  <div class="date-bar" id="dateBar" style="display:none">
+    <span class="label">📅 日期：</span>
+    <div id="dateButtons" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  </div>
+
   <!-- Dashboard -->
   <div id="dashboard" style="display:none">
 
@@ -400,6 +414,7 @@ let supabaseConnected = false;
 let sectorModalFunds = [];
 let sectorModalSector = '';
 let sectorModalSort = {key:'total',dir:-1};
+let selectedDate = null;
 
 // ============================================================
 //  GLOBAL FILTERS
@@ -412,6 +427,7 @@ function applyFilters(){
   let records = allRecords;
   if(hideDingTou) records = records.filter(r => r.operation !== '定');
   if(hideUncategorized) records = records.filter(r => r.sector !== '未分类');
+  if(selectedDate) records = records.filter(r => r.date === selectedDate);
   // Recompute sector stats from filtered records
   const smap = {};
   records.forEach(r => {
@@ -439,7 +455,7 @@ function saveToLocalStorage(){
   try {
     // Strip circular/extra fields before saving
     const clean = allRecords.map(r=>({
-      sector:r.sector, operation:r.operation, opType:r.opType, opLabel:r.opLabel,
+      date:r.date, sector:r.sector, operation:r.operation, opType:r.opType, opLabel:r.opLabel,
       fundRaw:r.fundRaw, fundName:r.fundName, fundEst:r.fundEst,
       amountRaw:r.amountRaw, amount:r.amount, amountPct:r.amountPct,
       blogger:r.blogger, monthReturn:r.monthReturn, yearReturn:r.yearReturn,
@@ -574,14 +590,19 @@ function disconnectSupabase(){
 async function syncToSupabase(){
   if(!supabaseClient || !supabaseConnected) return false;
   try {
+    const sourceFile = document.getElementById('fileName').textContent;
+    const dateStr = extractDateFromFileName(sourceFile);
+    // Delete existing records for the same source file (re-upload)
+    await supabaseClient.from('records').delete().eq('source_file', sourceFile);
     const records = allRecords.map(r=>({
+      date: dateStr, source_file: sourceFile,
       sector: r.sector, operation: r.operation, op_type: r.opType, op_label: r.opLabel,
       fund_raw: r.fundRaw, fund_name: r.fundName, fund_est: r.fundEst,
       amount_raw: r.amountRaw, amount: r.amount, amount_pct: r.amountPct,
       blogger: r.blogger, month_return: r.monthReturn, year_return: r.yearReturn,
       holdings_raw: r.holdingsRaw, holdings_num: r.holdingsNum, style: r.style
     }));
-    // Batch insert (up to 1000 at a time)
+    // Batch insert (up to 200 at a time)
     const batchSize = 200;
     for(let i=0; i<records.length; i+=batchSize){
       const batch = records.slice(i, i+batchSize);
@@ -589,7 +610,7 @@ async function syncToSupabase(){
       if(error) throw error;
     }
     document.getElementById('dbStatusIndicator').style.display = 'inline';
-    document.getElementById('dbStatusIndicator').title = '已同步 '+records.length+' 条记录';
+    document.getElementById('dbStatusIndicator').title = '已同步 '+records.length+' 条记录 ('+formatDateLabel(dateStr)+')';
     return true;
   } catch(e){
     console.error('Supabase sync failed:', e);
@@ -604,9 +625,12 @@ async function loadFromSupabase(){
     const { data, error } = await supabaseClient.from('records').select('*').order('id', { ascending: true });
     if(error) throw error;
     if(!data || data.length === 0) return false;
+    // Build set of available dates
+    const dateSet = new Set(data.map(r=>r.date).filter(Boolean));
+    const dates = [...dateSet].sort();
     // Map database fields back to app format
     allRecords = data.map(r=>({
-      sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
+      date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
       fundRaw: r.fund_raw, fundName: r.fund_name, fundEst: r.fund_est,
       amountRaw: r.amount_raw, amount: r.amount, amountPct: r.amount_pct,
       blogger: r.blogger, monthReturn: r.month_return, yearReturn: r.year_return,
@@ -675,6 +699,9 @@ async function handleFile(file){
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
     parseData(rows);
+    // Assign date to all records based on file name
+    const dateStr = extractDateFromFileName(file.name);
+    allRecords.forEach(r => r.date = dateStr);
     document.getElementById('uploadPlaceholder').style.display='none';
     document.getElementById('uploadResult').style.display='block';
     document.getElementById('fileName').textContent = file.name;
@@ -906,6 +933,7 @@ function getFundStats(records = allRecords){
 // ============================================================
 function renderAll(){
   applyFilters();
+  rebuildAvailableDates();
   // Update filter hint
   const total = allRecords.length;
   const shown = filteredData.records.length;
@@ -1268,6 +1296,57 @@ function escHtml(s){
 function escAttr(s){ return escHtml(s); }
 
 // ============================================================
+//  DATE UTILITIES
+// ============================================================
+function extractDateFromFileName(fileName){
+  if(!fileName) return new Date().toISOString().slice(0,10);
+  const m = fileName.match(/(\d+)\.(\d+)/);
+  if(m){
+    const month = String(parseInt(m[1])).padStart(2,'0');
+    const day = String(parseInt(m[2])).padStart(2,'0');
+    return `${new Date().getFullYear()}-${month}-${day}`;
+  }
+  return new Date().toISOString().slice(0,10);
+}
+function formatDateLabel(dateStr){
+  if(!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  const weekdays = ['日','一','二','三','四','五','六'];
+  const wd = weekdays[d.getDay()];
+  return `${month}月${day}日 周${wd}`;
+}
+function rebuildAvailableDates(){
+  const dates = [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort();
+  renderDateSelector(dates);
+}
+function renderDateSelector(dates){
+  const container = document.getElementById('dateButtons');
+  const bar = document.getElementById('dateBar');
+  if(!dates || dates.length === 0){
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+  const counts = {};
+  allRecords.forEach(r => { if(r.date) counts[r.date] = (counts[r.date]||0) + 1; });
+  let html = `<button class="date-btn ${selectedDate===null?'active':''}" onclick="setDate(null)">📋 全部</button>`;
+  dates.forEach(d => {
+    const active = selectedDate === d;
+    html += `<button class="date-btn${active?' active':''}" onclick="setDate('${d}')">${formatDateLabel(d)} <span class="count">${counts[d]||0}条</span></button>`;
+  });
+  container.innerHTML = html;
+}
+function setDate(dateStr){
+  selectedDate = dateStr;
+  // Update URL hash for bookmarkability
+  if(dateStr) location.hash = '#'+dateStr;
+  else location.hash = '';
+  renderAll();
+}
+
+// ============================================================
 //  INIT
 // ============================================================
 document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
@@ -1292,7 +1371,23 @@ document.getElementById('headerDate').textContent = new Date().toLocaleDateStrin
   } else if(!loadFromLocalStorage()){
     console.log('🐡 泡泡菌操作分析 · 请上传 Excel 文件开始分析');
   }
+  // Restore selected date from URL hash (e.g., #2026-05-27)
+  if(location.hash && location.hash.length > 1){
+    const hashDate = decodeURIComponent(location.hash.slice(1));
+    if(allRecords.some(r => r.date === hashDate)){
+      selectedDate = hashDate;
+      renderAll();
+    }
+  }
 })();
+// Listen for hash changes (browser back/forward navigation)
+window.addEventListener('hashchange', function(){
+  const hashDate = location.hash ? decodeURIComponent(location.hash.slice(1)) : null;
+  if(allRecords.length > 0 && hashDate !== selectedDate){
+    selectedDate = hashDate && allRecords.some(r => r.date === hashDate) ? hashDate : null;
+    renderAll();
+  }
+});
 </script>
 </body>
 </html>
