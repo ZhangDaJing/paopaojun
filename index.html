@@ -702,8 +702,9 @@ async function handleFiles(files){
   loading.classList.add('active');
   dashboard.style.display='none';
   try{
-    let accumulatedRecords = [];
-    let sectorNameSet = new Set();
+    // Start with existing in-memory data, append newly imported records
+    let accumulatedRecords = [...allRecords];
+    let sectorNameSet = new Set(allSectors.map(s => s.name));
     let fileLabels = [];
 
     for(const file of files){
