@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>泡泡菌 · 博主基金操作分析</title>
+<title>博主基金操作分析</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -66,8 +66,8 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
 }
 #dateToggle:hover{background:#f0f2f5;width:36px}
 #datePanel{
-  position:fixed; right:-240px; top:50%; transform:translateY(-50%);
-  width:220px; background:var(--card); border:1px solid var(--border);
+  position:fixed; right:-280px; top:50%; transform:translateY(-50%);
+  width:260px; background:var(--card); border:1px solid var(--border);
   border-right:none; border-radius:10px 0 0 10px; z-index:98;
   box-shadow:-4px 0 20px rgba(0,0,0,.08); transition:right .28s ease;
   overflow:hidden;
@@ -81,17 +81,29 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
 .date-panel-header .close-btn{background:none;border:none;font-size:16px;cursor:pointer;color:var(--muted);padding:2px 6px}
 .date-panel-header .close-btn:hover{color:var(--text)}
 .date-panel-body{padding:8px 12px 12px; max-height:50vh; overflow-y:auto}
-.date-panel-btn{
-  display:flex; align-items:center; justify-content:space-between;
-  width:100%; padding:8px 10px; border:none; border-radius:6px;
-  background:transparent; font-size:13px; cursor:pointer; color:var(--text);
-  transition:.15s; text-align:left; margin-bottom:2px;
-}
-.date-panel-btn:hover{background:#f3f4f6}
-.date-panel-btn.active{background:#1e3a5f;color:#fff;font-weight:600}
-.date-panel-btn .count{font-size:11px;opacity:.65}
-.date-panel-btn.active .count{opacity:.9}
-.date-panel-divider{height:1px;background:var(--border);margin:6px 0}
+.date-all-btn{display:block;width:100%;padding:7px;border:none;border-radius:6px;background:transparent;font-size:13px;cursor:pointer;color:var(--text);text-align:center;margin-bottom:8px;transition:.15s}
+.date-all-btn:hover{background:#f3f4f6}
+.date-all-btn.active{background:#1e3a5f;color:#fff;font-weight:600}
+.date-all-btn .count{font-size:11px;opacity:.65}
+.date-all-btn.active .count{opacity:.9}
+
+/* Calendar grid */
+.cal-header{display:flex;align-items:center;justify-content:space-between;padding:2px 0 8px}
+.cal-header .cal-title{font-size:14px;font-weight:600}
+.cal-nav{background:none;border:none;cursor:pointer;font-size:14px;color:var(--text);padding:2px 10px;border-radius:4px;font-weight:600}
+.cal-nav:hover{background:#f3f4f6}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-wd{text-align:center;font-size:10px;color:var(--muted);padding:4px 0 6px;font-weight:600}
+.cal-day{text-align:center;padding:6px 0;border-radius:6px;font-size:13px;cursor:pointer;position:relative;line-height:1.2;transition:.1s}
+.cal-day:hover{background:#f3f4f6}
+.cal-day.no-data{color:#d1d5db;cursor:default}
+.cal-day.no-data:hover{background:transparent}
+.cal-day.has-data{font-weight:600}
+.cal-day.active{background:#1e3a5f;color:#fff}
+.cal-day.active:hover{background:#1e3a5f}
+.cal-day.today{outline:2px solid var(--blue);outline-offset:-2px}
+.cal-day .cal-dot{width:4px;height:4px;border-radius:50%;background:var(--green);margin:2px auto 0}
+.cal-day.active .cal-dot{background:#fff}
 
 /* ====== Summary Cards ====== */
 .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
@@ -226,7 +238,7 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
 
 <header>
   <div>
-    <h1>🐡 泡泡菌 · <span>博主操作分析</span></h1>
+    <h1><span>博主操作分析</span></h1>
     <div class="sub">每日 Excel 上传 · 智能解析买卖趋势</div>
   </div>
   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -1399,14 +1411,28 @@ function formatDateLabel(dateStr){
   const wd = weekdays[d.getDay()];
   return `${month}月${day}日 周${wd}`;
 }
+let calYear = 2026;
+let calMonth = 4; // 0-indexed
+
 function rebuildAvailableDates(){
   const dates = [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort();
   // Default to latest date if no date is selected yet
   if(dates.length > 0 && selectedDate === null){
     selectedDate = dates[dates.length - 1];
   }
+  // Set calendar to selected date's month
+  if(selectedDate){
+    const d = new Date(selectedDate + 'T00:00:00');
+    calYear = d.getFullYear();
+    calMonth = d.getMonth();
+  } else if(dates.length > 0){
+    const d = new Date(dates[dates.length - 1] + 'T00:00:00');
+    calYear = d.getFullYear();
+    calMonth = d.getMonth();
+  }
   renderDatePanel(dates);
 }
+
 function renderDatePanel(dates){
   const toggle = document.getElementById('dateToggle');
   const body = document.getElementById('datePanelBody');
@@ -1417,18 +1443,69 @@ function renderDatePanel(dates){
   toggle.style.display = 'flex';
   const counts = {};
   allRecords.forEach(r => { if(r.date) counts[r.date] = (counts[r.date]||0) + 1; });
-  let html = `<button class="date-panel-btn ${selectedDate===null?'active':''}" onclick="setDate(null)">📋 全部日期 <span class="count">${allRecords.length}条</span></button>`;
-  html += '<div class="date-panel-divider"></div>';
-  // Show dates in reverse order (newest first)
-  [...dates].reverse().forEach(d => {
-    const active = selectedDate === d;
-    html += `<button class="date-panel-btn${active?' active':''}" onclick="setDate('${d}')">
-      <span>${formatDateLabel(d)}</span>
-      <span class="count">${counts[d]||0}条</span>
-    </button>`;
-  });
+
+  // Build a set of date strings that have data
+  const dateSet = new Set(dates);
+
+  // "全部日期" button
+  let html = `<button class="date-all-btn ${selectedDate===null?'active':''}" onclick="setDate(null)">📋 全部日期 <span class="count">${allRecords.length}条</span></button>`;
+  // Calendar
+  html += renderCalendar(dateSet, counts);
   body.innerHTML = html;
 }
+
+function renderCalendar(dateSet, counts){
+  const monthNames = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+  const weekdays = ['日','一','二','三','四','五','六'];
+  const today = new Date().toISOString().slice(0,10);
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  let h = `<div class="cal-header">
+    <button class="cal-nav" onclick="calPrevMonth()">◀</button>
+    <span class="cal-title">${calYear}年${monthNames[calMonth]}</span>
+    <button class="cal-nav" onclick="calNextMonth()">▶</button>
+  </div>`;
+  h += '<div class="cal-grid">';
+  // Weekday headers
+  weekdays.forEach(w => { h += `<div class="cal-wd">${w}</div>`; });
+  // Empty cells before first day
+  for(let i=0; i<firstDay; i++) h += '<div></div>';
+  // Day cells
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const hasData = dateSet.has(dateStr);
+    const isActive = selectedDate === dateStr;
+    const isToday = dateStr === today;
+    let cls = 'cal-day';
+    if(isActive) cls += ' active';
+    if(isToday) cls += ' today';
+    if(hasData) cls += ' has-data';
+    else cls += ' no-data';
+
+    if(hasData){
+      h += `<div class="${cls}" onclick="setDate('${dateStr}')">${d}`;
+      if(counts[dateStr]) h += `<div class="cal-dot"></div>`;
+      h += `</div>`;
+    } else {
+      h += `<div class="${cls}">${d}</div>`;
+    }
+  }
+  h += '</div>';
+  return h;
+}
+
+function calPrevMonth(){
+  calMonth--;
+  if(calMonth < 0){ calMonth = 11; calYear--; }
+  renderDatePanel([...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort());
+}
+function calNextMonth(){
+  calMonth++;
+  if(calMonth > 11){ calMonth = 0; calYear++; }
+  renderDatePanel([...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort());
+}
+
 function toggleDatePanel(){
   document.getElementById('datePanel').classList.toggle('open');
 }
@@ -1439,6 +1516,12 @@ function setDate(dateStr){
   selectedDate = dateStr;
   if(dateStr) location.hash = '#'+dateStr;
   else location.hash = '';
+  // Update calendar to selected month
+  if(dateStr){
+    const d = new Date(dateStr + 'T00:00:00');
+    calYear = d.getFullYear();
+    calMonth = d.getMonth();
+  }
   closeDatePanel();
   renderAll();
 }
