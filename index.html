@@ -22,27 +22,30 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 a{color:var(--blue);text-decoration:none}
 
 /* ====== Header ====== */
-header{background:linear-gradient(135deg,#1e3a5f,#0f1b2d);color:#fff;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
-header h1{font-size:20px;font-weight:700;letter-spacing:.5px}
+header{background:linear-gradient(135deg,#1e3a5f,#0f1b2d);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+header h1{font-size:18px;font-weight:700;letter-spacing:.5px}
 header h1 span{color:#60a5fa}
-header .sub{font-size:13px;opacity:.7}
-header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radius:20px;font-size:13px}
+header .sub{font-size:12px;opacity:.7}
+header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radius:20px;font-size:12px}
+#importBtn{
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;
+  padding:5px 14px;border-radius:20px;font-size:12px;cursor:pointer;transition:.2s;white-space:nowrap;
+}
+#importBtn:hover{background:rgba(255,255,255,.22)}
+#importStatus{font-size:12px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
 
 /* ====== Layout ====== */
 .container{max-width:1400px;margin:0 auto;padding:20px 16px;flex:1}
 
-/* ====== Upload ====== */
-.upload-zone{
-  background:var(--card);border:2px dashed var(--border);border-radius:var(--radius);
-  padding:48px 24px;text-align:center;cursor:pointer;transition:.25s;
-  margin-bottom:24px;
+/* ====== Drag Overlay ====== */
+#dragOverlay{
+  display:none;position:fixed;inset:0;z-index:999;
+  background:rgba(30,58,95,.88);justify-content:center;align-items:center;
+  flex-direction:column;gap:10px;
 }
-.upload-zone:hover,.upload-zone.dragover{border-color:var(--blue);background:#eff6ff}
-.upload-zone.has-file{border-color:var(--green);background:var(--green-bg);padding:24px}
-.upload-zone .icon{font-size:48px;margin-bottom:12px;opacity:.4}
-.upload-zone h3{font-size:18px;margin-bottom:6px}
-.upload-zone p{color:var(--muted);font-size:14px}
-.upload-zone .file-name{margin-top:8px;font-weight:600;color:var(--green)}
+#dragOverlay.active{display:flex}
+#dragOverlay .icon{font-size:48px}
+#dragOverlay .text{color:#fff;font-size:18px;font-weight:600}
 
 /* ====== Global Filters ====== */
 .filter-bar{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;padding:12px 16px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow)}
@@ -205,8 +208,8 @@ header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radi
 /* ====== Responsive ====== */
 @media(max-width:600px){
   .summary-grid{grid-template-columns:repeat(2,1fr)}
-  header h1{font-size:16px}
-  .upload-zone{padding:32px 16px}
+  header h1{font-size:15px}
+  header .sub{display:none}
 }
 
 /* ====== Tooltip ====== */
@@ -226,33 +229,27 @@ header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radi
     <h1>🐡 泡泡菌 · <span>博主操作分析</span></h1>
     <div class="sub">每日 Excel 上传 · 智能解析买卖趋势</div>
   </div>
-  <div style="display:flex;align-items:center;gap:10px">
-    <span style="display:none;font-size:12px;background:rgba(255,255,255,.1);padding:4px 12px;border-radius:12px;color:#94a3b8" id="cacheHint">💾 已缓存</span>
-    <span style="display:none;font-size:12px;background:rgba(16,185,129,.15);padding:4px 12px;border-radius:12px;color:#34d399" id="dbStatusIndicator">☁️ 云端</span>
+  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+    <button id="importBtn" onclick="document.getElementById('fileInput').click()">📂 导入文件</button>
+    <span id="importStatus" style="display:none;font-size:12px;color:#94a3b8"></span>
+    <span style="display:none;font-size:12px;background:rgba(255,255,255,.1);padding:3px 10px;border-radius:12px;color:#94a3b8" id="cacheHint">💾 已缓存</span>
+    <span style="display:none;font-size:12px;background:rgba(16,185,129,.15);padding:3px 10px;border-radius:12px;color:#34d399" id="dbStatusIndicator">☁️ 云端</span>
     <span class="date-badge" id="headerDate">--</span>
     <a href="#" onclick="openSettings()" style="color:#94a3b8;font-size:14px;text-decoration:none;opacity:.7" title="数据库设置">⚙️</a>
-    <a href="#" onclick="clearLocalData()" style="color:#94a3b8;font-size:12px;text-decoration:none;opacity:.7;margin-left:4px" title="清除本地缓存">✕</a>
+    <a href="#" onclick="clearLocalData()" style="color:#94a3b8;font-size:12px;text-decoration:none;opacity:.7" title="清除本地缓存">✕</a>
   </div>
 </header>
 
 <div class="container">
 
-  <!-- Upload -->
-  <div class="upload-zone" id="uploadZone">
-    <div id="uploadPlaceholder">
-      <div class="icon">📂</div>
-      <h3>上传 Excel 操作记录</h3>
-      <p>点击选择文件，或拖拽文件到此处</p>
-      <p style="margin-top:6px;font-size:12px;color:#9ca3af">支持 .xlsx / .xls 格式</p>
-    </div>
-    <div id="uploadResult" style="display:none">
-      <div style="font-size:40px;margin-bottom:6px">✅</div>
-      <h3>文件已加载</h3>
-      <div class="file-name" id="fileName"></div>
-      <p style="margin-top:4px;font-size:13px;color:var(--muted)" id="fileSummary"></p>
-      <p style="margin-top:10px"><a href="#" onclick="event.preventDefault();event.stopPropagation();document.getElementById('fileInput').click()">重新上传</a></p>
-    </div>
-    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" multiple>
+  <!-- Hidden file input -->
+  <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" multiple>
+  <span id="fileName" style="display:none"></span>
+
+  <!-- Drag Overlay -->
+  <div id="dragOverlay">
+    <div class="icon">📂</div>
+    <div class="text">松开以上传 Excel 文件</div>
   </div>
 
   <!-- Loading -->
@@ -426,7 +423,7 @@ header .date-badge{background:rgba(255,255,255,.12);padding:6px 14px;border-radi
 </div>
 
 <!-- Floating Date Panel -->
-<div id="dateToggle" title="选择日期">📅</div>
+<div id="dateToggle" title="选择日期" onclick="toggleDatePanel()">📅</div>
 <div id="datePanel">
   <div class="date-panel-header">
     <span>📅 选择日期</span>
@@ -516,10 +513,11 @@ function loadFromLocalStorage(){
       s.netFlow=s.actualBuyAmount-s.actualSellAmount;
     });
     allSectors = Object.values(smap);
-    document.getElementById('uploadPlaceholder').style.display='none';
-    document.getElementById('uploadResult').style.display='block';
-    document.getElementById('fileName').textContent = data.fileName||'已保存数据';
-    document.getElementById('fileSummary').textContent = '共 '+allRecords.length+' 条操作记录 · '+allSectors.length+' 个板块 · (缓存)';
+    const fn = data.fileName||'已保存数据';
+    document.getElementById('fileName').textContent = fn;
+    document.getElementById('importStatus').textContent = '📂 '+fn+' · '+allRecords.length+'条';
+    document.getElementById('importStatus').style.display = 'inline';
+    document.getElementById('importBtn').textContent = '📂 重新导入';
     document.getElementById('headerDate').textContent = (data.fileName||'').replace(/\.\w+$/,'')||new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
     document.getElementById('filterBar').style.display='flex';
     document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
@@ -680,10 +678,10 @@ async function loadFromSupabase(){
       s.netFlow=s.actualBuyAmount-s.actualSellAmount;
     });
     allSectors = Object.values(smap);
-    document.getElementById('uploadPlaceholder').style.display='none';
-    document.getElementById('uploadResult').style.display='block';
     document.getElementById('fileName').textContent = '云端数据';
-    document.getElementById('fileSummary').textContent = '共 '+allRecords.length+' 条操作记录 · '+allSectors.length+' 个板块 · (数据库)';
+    document.getElementById('importStatus').textContent = '📂 云端数据 · '+allRecords.length+'条';
+    document.getElementById('importStatus').style.display = 'inline';
+    document.getElementById('importBtn').textContent = '📂 重新导入';
     document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
     document.getElementById('filterBar').style.display='flex';
     document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
@@ -713,29 +711,35 @@ if(typeof XLSX === 'undefined'){
 // ============================================================
 //  FILE HANDLING
 // ============================================================
-const zone = document.getElementById('uploadZone');
 const input = document.getElementById('fileInput');
 const loading = document.getElementById('loading');
 const dashboard = document.getElementById('dashboard');
 
-// Click upload zone to open file picker (only when no file loaded)
-zone.addEventListener('click', function(e){
-  // Don't trigger if the click was on a link inside (e.g., "重新上传")
-  if(e.target.tagName === 'A') return;
-  const placeholder = document.getElementById('uploadPlaceholder');
-  if(placeholder.style.display !== 'none') input.click();
-});
-
-// Drag & drop (multiple files)
-zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragover')});
-zone.addEventListener('dragleave',()=>zone.classList.remove('dragover'));
-zone.addEventListener('drop',e=>{
-  e.preventDefault();zone.classList.remove('dragover');
-  const files = Array.from(e.dataTransfer.files).filter(f => f.name.match(/\.xlsx?$/i));
-  if(files.length) handleFiles(files);
-});
+// File input change
 input.addEventListener('change',e=>{
   const files = Array.from(e.target.files).filter(f => f.name.match(/\.xlsx?$/i));
+  if(files.length) handleFiles(files);
+});
+
+// Drag & drop on entire document
+let dragCounter = 0;
+const dragOverlay = document.getElementById('dragOverlay');
+document.addEventListener('dragenter',e=>{
+  e.preventDefault();
+  dragCounter++;
+  if(dragCounter === 1) dragOverlay.classList.add('active');
+});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('dragleave',e=>{
+  e.preventDefault();
+  dragCounter--;
+  if(dragCounter === 0) dragOverlay.classList.remove('active');
+});
+document.addEventListener('drop',e=>{
+  e.preventDefault();
+  dragCounter = 0;
+  dragOverlay.classList.remove('active');
+  const files = Array.from(e.dataTransfer.files).filter(f => f.name.match(/\.xlsx?$/i));
   if(files.length) handleFiles(files);
 });
 
@@ -774,10 +778,13 @@ async function handleFiles(files){
       s.netFlow = s.actualBuyAmount - s.actualSellAmount;
     });
 
-    document.getElementById('uploadPlaceholder').style.display = 'none';
-    document.getElementById('uploadResult').style.display = 'block';
-    document.getElementById('fileName').textContent = fileLabels.join(' | ');
-    document.getElementById('fileSummary').textContent = `共 ${allRecords.length} 条操作记录 · ${allSectors.length} 个板块 · ${files.length} 个文件`;
+    // Update header status
+    const fileNameStr = fileLabels.join(' | ');
+    document.getElementById('fileName').textContent = fileNameStr;
+    document.getElementById('importStatus').textContent = `📂 ${fileNameStr} · ${allRecords.length}条`;
+    document.getElementById('importStatus').style.display = 'inline';
+    document.getElementById('importBtn').textContent = '📂 重新导入';
+    // Store fileName for localStorage/sync reference
     document.getElementById('headerDate').textContent = files.length === 1
       ? extractDateFromFileName(files[0].name) : '多日数据';
     document.getElementById('filterBar').style.display = 'flex';
