@@ -121,14 +121,12 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
 
 /* ====== Chart Row ====== */
 .chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
-@media(max-width:900px){.chart-row{grid-template-columns:1fr}}
 .chart-card{background:var(--card);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
 .chart-card .card-title{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text)}
 .chart-wrapper{position:relative;height:280px}
 
 /* ====== Top Lists ====== */
 .top-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px}
-@media(max-width:900px){.top-grid{grid-template-columns:1fr}}
 .top-card{background:var(--card);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
 .top-card .top-title{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
 .top-card .top-title .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
@@ -218,10 +216,96 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
 .empty-state .icon{font-size:56px;margin-bottom:12px;opacity:.3}
 
 /* ====== Responsive ====== */
+
+/* Tablet: stack charts & top lists */
+@media(max-width:900px){
+  .chart-row{grid-template-columns:1fr}
+  .top-grid{grid-template-columns:1fr}
+}
+
+/* Large phone / small tablet */
 @media(max-width:600px){
   .summary-grid{grid-template-columns:repeat(2,1fr)}
+  header{padding:10px 14px}
   header h1{font-size:15px}
   header .sub{display:none}
+  header .date-badge{font-size:11px;padding:3px 10px}
+  #importBtn{font-size:11px;padding:4px 12px}
+  #importStatus{max-width:120px;font-size:11px}
+  .summary-card{padding:14px 12px}
+  .summary-card .value{font-size:20px}
+  .chart-wrapper{height:220px}
+  .chart-card{padding:14px}
+  .filter-bar{padding:10px 12px}
+  .filter-btn{padding:5px 10px;font-size:12px}
+  .top-card{padding:14px}
+  .top-item{padding:8px 0}
+  .top-item .stats .num{font-size:14px}
+  .sector-table-wrap{padding:12px}
+  .sector-table-wrap th,.sector-table-wrap td{padding:7px 8px;font-size:12px}
+  .data-table-wrap{padding:12px}
+  .data-table-wrap th,.data-table-wrap td{padding:7px 8px;font-size:12px}
+  .modal{padding:18px}
+  .modal h2{font-size:16px}
+  .container{padding:16px 12px}
+  .loading{padding:30px}
+  .section-title{font-size:15px}
+  #datePanel{width:240px}
+  .date-panel-body{max-height:40vh}
+  .data-table-wrap .table-toolbar input{min-width:120px}
+  .data-table-wrap th:nth-child(n+6),.data-table-wrap td:nth-child(n+6){display:none}
+  .sector-table-wrap th:nth-child(6),.sector-table-wrap td:nth-child(6){display:none}
+}
+
+/* Small phone */
+@media(max-width:480px){
+  header{padding:8px 10px;gap:4px}
+  header h1{font-size:14px}
+  #importBtn{font-size:10px;padding:4px 10px}
+  #importStatus{max-width:80px;font-size:10px}
+  .summary-grid{gap:10px}
+  .summary-card{padding:12px 10px}
+  .summary-card .value{font-size:18px}
+  .summary-card .label{font-size:11px}
+  .chart-wrapper{height:170px}
+  .chart-card{padding:12px}
+  .filter-bar{padding:8px 10px;gap:6px}
+  .filter-btn{padding:5px 8px;font-size:11px;gap:3px}
+  .filter-btn .badge-count{font-size:10px;padding:0 5px}
+  .top-card{padding:12px}
+  .top-item .stats .num{font-size:13px}
+  .top-item .info .name{font-size:13px}
+  .sector-table-wrap{padding:10px}
+  .sector-table-wrap th,.sector-table-wrap td{padding:6px 6px;font-size:11px}
+  .data-table-wrap{padding:10px}
+  .data-table-wrap th,.data-table-wrap td{padding:6px 6px;font-size:11px}
+  .data-table-wrap th{font-size:10px}
+  .modal{padding:14px;max-height:90vh}
+  .modal h2{font-size:15px}
+  .container{padding:12px 8px}
+  #datePanel{width:220px}
+  #dateToggle{width:28px;height:48px;font-size:14px}
+  .cal-day{font-size:12px;padding:5px 0}
+  .section-title{font-size:14px}
+  .tag{font-size:10px;padding:1px 8px}
+  .sort-btn{font-size:11px;padding:2px 10px}
+  .sort-bar{gap:4px}
+  .empty-state{padding:40px 16px}
+  .empty-state .icon{font-size:40px}
+  .bar-cell{min-width:80px}
+  .data-table-wrap .table-toolbar input{min-width:100px}
+  .expand-btn{padding:6px 20px;font-size:12px}
+  .filter-bar .label{font-size:12px}
+  .modal .close-btn{padding:8px;font-size:20px}
+  .modal-overlay{padding:10px}
+  .data-table-wrap th:nth-child(1),.data-table-wrap td:nth-child(1){display:none}
+  .sector-table-wrap th:nth-child(5),.sector-table-wrap td:nth-child(5){display:none}
+}
+
+/* Very small phones */
+@media(max-width:380px){
+  #datePanel{width:200px}
+  #dateToggle{width:24px;height:40px;font-size:12px}
 }
 
 /* ====== Tooltip ====== */
@@ -1100,14 +1184,22 @@ function renderSummary(){
   const bloggers = new Set(records.map(r=>r.blogger));
   const funds = new Set(records.map(r=>r.fundName));
 
-  document.getElementById('summaryGrid').innerHTML = `
-    <div class="summary-card"><div class="label">总操作数</div><div class="value blue">${records.length}</div><div class="sub-text">${buys.length} 笔买入 · ${sells.length} 笔卖出</div></div>
-    <div class="summary-card"><div class="label">买入总金额</div><div class="value green">${fmt(totalBuy)}</div><div class="sub-text">${buys.length} 笔操作</div></div>
-    <div class="summary-card"><div class="label">卖出总金额</div><div class="value red">${fmt(totalSell)}</div><div class="sub-text">${sells.length} 笔操作</div></div>
-    <div class="summary-card"><div class="label">净资金流向</div><div class="value ${net>=0?'green':'red'}">${net>=0?'+':''}${fmt(net)}</div><div class="sub-text">买入 ${net >= 0 ? '>' : '<'} 卖出</div></div>
-    <div class="summary-card"><div class="label">活跃博主</div><div class="value blue">${bloggers.size}</div><div class="sub-text">覆盖 ${funds.size} 只基金</div></div>
-    <div class="summary-card"><div class="label">板块数量</div><div class="value blue">${sectors.length}</div><div class="sub-text">净流入 ${sectors.filter(s=>(s.netFlow||0)>=0).length} 个</div></div>
-  `;
+  const isMobile = window.innerWidth < 600;
+  if(isMobile){
+    document.getElementById('summaryGrid').innerHTML = `
+      <div class="summary-card"><div class="label">总操作数</div><div class="value blue">${records.length}</div><div class="sub-text">${buys.length}买入·${sells.length}卖出</div></div>
+      <div class="summary-card"><div class="label">净资金流向</div><div class="value ${net>=0?'green':'red'}">${net>=0?'+':''}${fmt(net)}</div><div class="sub-text">买入${net>=0?'》：':'《'}卖出</div></div>
+      <div class="summary-card"><div class="label">买入总额</div><div class="value green">${fmt(totalBuy)}</div><div class="sub-text">${buys.length}笔</div></div>
+      <div class="summary-card"><div class="label">卖出总额</div><div class="value red">${fmt(totalSell)}</div><div class="sub-text">${sells.length}笔</div></div>`;
+  } else {
+    document.getElementById('summaryGrid').innerHTML = `
+      <div class="summary-card"><div class="label">总操作数</div><div class="value blue">${records.length}</div><div class="sub-text">${buys.length} 笔买入 · ${sells.length} 笔卖出</div></div>
+      <div class="summary-card"><div class="label">买入总金额</div><div class="value green">${fmt(totalBuy)}</div><div class="sub-text">${buys.length} 笔操作</div></div>
+      <div class="summary-card"><div class="label">卖出总金额</div><div class="value red">${fmt(totalSell)}</div><div class="sub-text">${sells.length} 笔操作</div></div>
+      <div class="summary-card"><div class="label">净资金流向</div><div class="value ${net>=0?'green':'red'}">${net>=0?'+':''}${fmt(net)}</div><div class="sub-text">买入 ${net >= 0 ? '>' : '<'} 卖出</div></div>
+      <div class="summary-card"><div class="label">活跃博主</div><div class="value blue">${bloggers.size}</div><div class="sub-text">覆盖 ${funds.size} 只基金</div></div>
+      <div class="summary-card"><div class="label">板块数量</div><div class="value blue">${sectors.length}</div><div class="sub-text">净流入 ${sectors.filter(s=>(s.netFlow||0)>=0).length} 个</div></div>`;
+  }
 }
 
 /* ---------- Sector Chart ---------- */
@@ -1207,8 +1299,9 @@ function getSellSortFn(mode){
 function renderTopLists(){
   const fundStats = getFundStats(filteredData.records);
   const activeFunds = fundStats.filter(f=>(f.buyCount+f.sellCount)>=2);
+  const listLimit = window.innerWidth < 600 ? 5 : 10;
 
-  const topBuys = [...activeFunds].sort(getBuySortFn(buySortMode)).slice(0,10);
+  const topBuys = [...activeFunds].sort(getBuySortFn(buySortMode)).slice(0,listLimit);
   document.getElementById('topBuys').innerHTML = topBuys.map((f,i)=>`
     <div class="top-item" onclick='openFundModal("${escHtml(f.fundName)}","${escHtml(f.sector)}")' style="cursor:pointer">
       <div class="rank ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">#${i+1}</div>
@@ -1223,7 +1316,7 @@ function renderTopLists(){
     </div>
   `).join('');
 
-  const topSells = [...activeFunds].sort(getSellSortFn(sellSortMode)).slice(0,10);
+  const topSells = [...activeFunds].sort(getSellSortFn(sellSortMode)).slice(0,listLimit);
   document.getElementById('topSells').innerHTML = topSells.map((f,i)=>`
     <div class="top-item" onclick='openFundModal("${escHtml(f.fundName)}","${escHtml(f.sector)}")' style="cursor:pointer">
       <div class="rank ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">#${i+1}</div>
@@ -1244,12 +1337,13 @@ function renderSectorTable(){
   const sectors = filteredData.sectors;
   const active = sectors.filter(s=>s.actualBuyCount>0||s.actualSellCount>0).sort((a,b)=>Math.abs(b.netFlow||0)-Math.abs(a.netFlow||0));
   document.getElementById('sectorCount').textContent = active.length+'个';
-  const show = (sectorExpandAll || active.length <= 20) ? active : active.slice(0, 20);
+  const defaultLimit = window.innerWidth < 600 ? 10 : 20;
+  const show = (sectorExpandAll || active.length <= defaultLimit) ? active : active.slice(0, defaultLimit);
   const btn = document.getElementById('sectorExpandBtn');
-  if(active.length <= 20) btn.style.display = 'none';
+  if(active.length <= defaultLimit) btn.style.display = 'none';
   else {
     btn.style.display = 'block';
-    btn.textContent = sectorExpandAll ? '收起 (显示前20个)' : `展开全部 (${active.length}个)`;
+    btn.textContent = sectorExpandAll ? `收起 (显示前${defaultLimit}个)` : `展开全部 (${active.length}个)`;
   }
   const maxFlow = Math.max(...active.map(s=>Math.abs(s.netFlow||0)),1);
   document.getElementById('sectorTableBody').innerHTML = show.map(s=>{
