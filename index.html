@@ -595,36 +595,39 @@ function enqueueFundNameLookup(name){
 
 async function processNameLookups(){
   nameLookupActive = true;
+  console.log('🐡 开始名称匹配，队列长度: '+nameLookupQueue.length);
   while(nameLookupQueue.length > 0){
     const name = nameLookupQueue.shift();
     try {
-      const code = await new Promise((resolve, reject) => {
+      const code = await new Promise((resolve) => {
         const s = document.createElement('script');
         const cb = 'fcb' + Date.now();
         window[cb] = function(data){
           delete window[cb];
           if(s.parentNode) s.parentNode.removeChild(s);
           if(data && data.Datas && data.Datas.length > 0){
-            // Return the first match
+            const top = data.Datas.slice(0,3).map(d => d.CODE+' '+d.NAME).join(' | ');
+            console.log('🐡 搜索API返回: '+top);
             resolve(data.Datas[0].CODE);
           } else {
+            console.log('🐡 搜索无结果: '+name);
             resolve(null);
           }
         };
         s.src = `https://fundsuggest.eastmoney.com/fundsearch/api/FundSearchAPI.ashx?callback=${cb}&m=1&key=${encodeURIComponent(name)}`;
-        s.onerror = () => { delete window[cb]; if(s.parentNode) s.parentNode.removeChild(s); resolve(null); };
+        s.onerror = () => { delete window[cb]; if(s.parentNode) s.parentNode.removeChild(s); console.log('🐡 搜索请求失败: '+name); resolve(null); };
         document.head.appendChild(s);
-        setTimeout(() => { if(window[cb]){ delete window[cb]; if(s.parentNode) s.parentNode.removeChild(s); resolve(null); } }, 5000);
+        setTimeout(() => { if(window[cb]){ delete window[cb]; if(s.parentNode) s.parentNode.removeChild(s); console.log('🐡 搜索超时: '+name); resolve(null); } }, 5000);
       });
-      if(code){
+      if(code && isValidFundCode(code)){
         fundNameCodeMap[name] = code;
         saveFundNameMap();
-        console.log('🐡 基金名称匹配: '+name+' → '+code);
-        // Re-render top lists so the newly matched code appears as an estimate span
+        console.log('🐡 ✅ 匹配成功: '+name+' → '+code);
         renderTopLists();
+      } else if(code){
+        console.log('🐡 ❌ 非法代码: '+name+' → '+code);
       }
-    } catch(e){ /* skip */ }
-    // Small delay between lookups to avoid rate limiting
+    } catch(e){ console.log('🐡 搜索异常: '+name, e); }
     if(nameLookupQueue.length > 0) await new Promise(r => setTimeout(r, 300));
   }
   nameLookupActive = false;
@@ -1232,7 +1235,13 @@ function getFundStats(records = allRecords){
     f.consensusSellScore = sellBloggerCount*3 + f.sells.length*2 + Math.log(sellAmt+1)*0.5;
     // Sentiment: 1=all buy, -1=all sell
     f.sentiment = totalBloggers>0 ? (buyBloggerCount-sellBloggerCount)/totalBloggers : 0;
-    f.fundCode = extractFundCode(f.fundRaw) || extractFundCodeFromName(f.fundName) || lookupFundCodeByName(f.fundName);
+    // Try to find fund code: raw data → fund name → name lookup cache
+    let code = extractFundCode(f.fundRaw);
+    if(!isValidFundCode(code)) code = null; // reject stock codes like 300xxx
+    if(!code) code = extractFundCodeFromName(f.fundName);
+    if(!isValidFundCode(code)) code = null;
+    if(!code) code = lookupFundCodeByName(f.fundName);
+    f.fundCode = isValidFundCode(code) ? code : null;
     return f;
   });
 }
@@ -1560,21 +1569,42 @@ function extractFundCodeFromName(name){
   return m2 ? m2[1] : null;
 }
 
-let fundCodesTried = {}; // track codes we've already tried to load
+// Only try codes that look like real fund codes (not stock codes like 300xxx/600xxx/000xxx)
+function isValidFundCode(code){
+  if(!code || code.length !== 6) return false;
+  const prefix = code.substring(0, 2);
+  // Common fund code prefixes: 00,01,02,15,16,50,51,52,56,58,59
+  return ['00','01','02','15','16','50','51','52','56','58','59'].includes(prefix);
+}
+
+const ESTIMATE_TIMEOUT = 6000; // 6s per code before giving up
 
 function fetchFundEstimate(code){
-  if(!code || fundEstimateCache[code] !== undefined || jsonpgzQueue.includes(code)) return;
+  if(!code || !isValidFundCode(code)){
+    if(code) fundEstimateCache[code] = null; // mark invalid immediately
+    return;
+  }
+  if(fundEstimateCache[code] !== undefined || jsonpgzQueue.includes(code)) return;
   jsonpgzQueue.push(code);
   const s = document.createElement('script');
   s.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
+  const tid = setTimeout(() => {
+    const idx = jsonpgzQueue.indexOf(code);
+    if(idx >= 0) jsonpgzQueue.splice(idx, 1);
+    if(fundEstimateCache[code] === undefined) fundEstimateCache[code] = null;
+    if(s.parentNode) s.parentNode.removeChild(s);
+    updateFundEstimates();
+  }, ESTIMATE_TIMEOUT);
+  s.onload = () => { /* JSONP won't fire onload for 404 either, timeout handles it */ };
   s.onerror = () => {
+    clearTimeout(tid);
     const idx = jsonpgzQueue.indexOf(code);
     if(idx >= 0) jsonpgzQueue.splice(idx, 1);
     fundEstimateCache[code] = null;
+    if(s.parentNode) s.parentNode.removeChild(s);
     updateFundEstimates();
   };
   document.head.appendChild(s);
-  setTimeout(() => { if(s.parentNode) s.parentNode.removeChild(s); }, 12000);
 }
 
 function updateFundEstimates(){
