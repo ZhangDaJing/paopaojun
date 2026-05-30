@@ -1847,7 +1847,7 @@ function renderFundHoldings(holdings){
   }
   // Holdings may be array-of-objects or array-of-arrays from eastmoney
   const normalize = h => {
-    if(Array.isArray(h)){ return {code: h[0]||'--', name: h[1]||'--', pct: parseFloat(h[2])||0}; }
+    if(Array.isArray(h) || (typeof h === "object" && "0" in h && "1" in h)){ return {code: h[0]||'--', name: h[1]||'--', pct: parseFloat(h[2])||0}; }
     else { return {code: h.gpdm || h.zqdm || '--', name: h.gpjc || h.zqmc || '--', pct: parseFloat(h.jzbl || h.zcw || h.zczb) || 0}; }
   };
   const normalized = holdings.map(normalize).filter(h => h.pct > 0);
