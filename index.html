@@ -171,10 +171,29 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
 .modal .modal-table th{padding:8px 10px;text-align:left;font-weight:600;color:var(--muted);font-size:11px;border-bottom:2px solid var(--border)}
 .modal .modal-table td{padding:8px 10px;border-bottom:1px solid var(--border)}
 
+/* ====== Fund Modal Tabs ====== */
+.fund-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border)}
+.fund-tab{
+  padding:8px 18px;border:none;background:transparent;font-size:14px;font-weight:600;
+  cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;
+  transition:.2s;
+}
+.fund-tab:hover{color:var(--text)}
+.fund-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.fund-est{font-size:12px;margin-left:6px;font-weight:500}
+.fund-est.up{color:var(--red)}
+.fund-est.down{color:var(--green)}
+.fund-est.loading{color:var(--muted)}
+.fund-nav-chart-wrap{position:relative;height:300px;margin-top:8px}
+.fund-holdings-table{width:100%;border-collapse:collapse;font-size:13px}
+.fund-holdings-table th{padding:7px 10px;text-align:left;font-weight:600;color:var(--muted);font-size:11px;border-bottom:2px solid var(--border)}
+.fund-holdings-table td{padding:7px 10px;border-bottom:1px solid var(--border)}
+.fund-nav-loading{text-align:center;padding:30px;color:var(--muted)}
+
 /* ====== Loading ====== */
 .loading{display:none;text-align:center;padding:40px;color:var(--muted)}
 .loading.active{display:block}
-.loading .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ====== Empty State ====== */
@@ -426,9 +445,27 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
     <button class="close-btn" onclick="closeModal()">&times;</button>
     <h2 id="modalTitle">--</h2>
     <div class="modal-meta" id="modalMeta"></div>
-    <table class="modal-table"><thead><tr>
-      <th>博主</th><th>操作</th><th>金额</th><th>占比</th><th>博主持有</th>
-    </tr></thead><tbody id="modalBody"></tbody></table>
+    <div class="fund-tabs">
+      <button class="fund-tab active" onclick="switchFundTab('records')">操作记录</button>
+      <button class="fund-tab" onclick="switchFundTab('nav')">净值走势</button>
+      <button class="fund-tab" onclick="switchFundTab('holdings')">基金持仓</button>
+    </div>
+    <div id="fundTabRecords">
+      <table class="modal-table"><thead><tr>
+        <th>博主</th><th>操作</th><th>金额</th><th>占比</th><th>博主持有</th>
+      </tr></thead><tbody id="modalBody"></tbody></table>
+    </div>
+    <div id="fundTabNav" style="display:none">
+      <div id="fundNavLoading" class="fund-nav-loading"><div class="spinner"></div><div style="margin-top:12px">加载净值数据...</div></div>
+      <div class="fund-nav-chart-wrap" id="fundNavChartWrap" style="display:none"><canvas id="fundNavChart"></canvas></div>
+    </div>
+    <div id="fundTabHoldings" style="display:none">
+      <div id="fundHoldingsLoading" class="fund-nav-loading"><div class="spinner"></div><div style="margin-top:12px">加载持仓数据...</div></div>
+      <table class="fund-holdings-table" id="fundHoldingsTable" style="display:none"><thead><tr>
+        <th>股票代码</th><th>股票名称</th><th>占净值比例</th>
+      </tr></thead><tbody id="fundHoldingsBody"></tbody></table>
+      <div id="fundHoldingsDate" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+    </div>
   </div>
 </div>
 
@@ -515,6 +552,22 @@ let availableDates = [];
 let dateCounts = {};
 const DETAIL_PAGE_SIZE = 50;
 let detailDisplayCount = DETAIL_PAGE_SIZE;
+
+// Fund data cache (NAV, holdings)
+let fundDataCache = {};       // {code: {nav: [...], holdings: [...], holdingsDate: '', name: ''}}
+let fundEstimateCache = {};   // {code: {name, gsz, gszzl, gztime, dwjz}}
+let fundModalCode = null;     // current fund code in modal
+let fundNavChartInstance = null;
+let fundModalRecords = [];
+
+// JSONP queues
+let jsonpgzQueue = [];        // pending estimate callbacks
+window.jsonpgz = function(data){
+  fundEstimateCache[data.fundcode] = data;
+  updateFundEstimates();
+  const idx = jsonpgzQueue.indexOf(data.fundcode);
+  if(idx >= 0) jsonpgzQueue.splice(idx, 1);
+};
 
 // ============================================================
 //  GLOBAL FILTERS
@@ -1080,7 +1133,7 @@ function getFundStats(records = allRecords){
   const map = {};
   records.forEach(r=>{
     const key = r.fundName+'|||'+r.sector;
-    if(!map[key]) map[key]={fundName:r.fundName,sector:r.sector,buys:[],sells:[],buyBloggers:new Set(),sellBloggers:new Set(),records:[]};
+    if(!map[key]) map[key]={fundName:r.fundName,sector:r.sector,fundRaw:r.fundRaw,buys:[],sells:[],buyBloggers:new Set(),sellBloggers:new Set(),records:[]};
     map[key].records.push(r);
     if(r.opType==='buy'){
       map[key].buys.push(r);
@@ -1109,6 +1162,7 @@ function getFundStats(records = allRecords){
     f.consensusSellScore = sellBloggerCount*3 + f.sells.length*2 + Math.log(sellAmt+1)*0.5;
     // Sentiment: 1=all buy, -1=all sell
     f.sentiment = totalBloggers>0 ? (buyBloggerCount-sellBloggerCount)/totalBloggers : 0;
+    f.fundCode = extractFundCode(f.fundRaw);
     return f;
   });
 }
@@ -1259,12 +1313,17 @@ function renderTopLists(){
   const activeFunds = fundStats.filter(f=>(f.buyCount+f.sellCount)>=2);
   const listLimit = 10;
 
+  function estHtml(f){
+    if(!f.fundCode) return '';
+    return `<span class="fund-est loading" data-code="${f.fundCode}">...</span>`;
+  }
+
   const topBuys = [...activeFunds].sort(getBuySortFn(buySortMode)).slice(0,listLimit);
   document.getElementById('topBuys').innerHTML = topBuys.map((f,i)=>`
     <div class="top-item" onclick='openFundModal("${escHtml(f.fundName)}","${escHtml(f.sector)}")' style="cursor:pointer">
       <div class="rank ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">#${i+1}</div>
       <div class="info">
-        <div class="name">${escHtml(f.fundName)}</div>
+        <div class="name">${escHtml(f.fundName)}${estHtml(f)}</div>
         <div class="meta">${escHtml(f.sector)} · ${f.buyBloggerCount} 位博主买入 · ${f.buyCount} 笔</div>
       </div>
       <div class="stats">
@@ -1279,7 +1338,7 @@ function renderTopLists(){
     <div class="top-item" onclick='openFundModal("${escHtml(f.fundName)}","${escHtml(f.sector)}")' style="cursor:pointer">
       <div class="rank ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">#${i+1}</div>
       <div class="info">
-        <div class="name">${escHtml(f.fundName)}</div>
+        <div class="name">${escHtml(f.fundName)}${estHtml(f)}</div>
         <div class="meta">${escHtml(f.sector)} · ${f.sellBloggerCount} 位博主卖出 · ${f.sellCount} 笔</div>
       </div>
       <div class="stats">
@@ -1288,6 +1347,14 @@ function renderTopLists(){
       </div>
     </div>
   `).join('');
+
+  // Fetch estimates for visible funds
+  const codes = [...new Set([...topBuys,...topSells].map(f=>f.fundCode).filter(Boolean))];
+  codes.forEach(code => {
+    if(!fundEstimateCache[code]) fetchFundEstimate(code);
+  });
+  // Immediately apply any cached estimates
+  updateFundEstimates();
 }
 
 /* ---------- Sector Table ---------- */
@@ -1398,13 +1465,59 @@ function sortDetail(key){
 }
 
 // ============================================================
+//  FUND HELPERS
+// ============================================================
+function extractFundCode(raw){
+  if(!raw) return null;
+  const m = raw.match(/(\d{6})/);
+  return m ? m[1] : null;
+}
+
+function fetchFundEstimate(code){
+  if(fundEstimateCache[code] || jsonpgzQueue.includes(code)) return;
+  jsonpgzQueue.push(code);
+  const s = document.createElement('script');
+  s.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
+  s.onerror = () => {
+    const idx = jsonpgzQueue.indexOf(code);
+    if(idx >= 0) jsonpgzQueue.splice(idx, 1);
+    fundEstimateCache[code] = null; // mark as failed
+  };
+  document.head.appendChild(s);
+  setTimeout(() => { if(s.parentNode) s.parentNode.removeChild(s); }, 10000);
+}
+
+function updateFundEstimates(){
+  // Update all .fund-est spans in the page
+  document.querySelectorAll('.fund-est').forEach(el => {
+    const code = el.dataset.code;
+    if(!code || el.dataset.done) return;
+    const e = fundEstimateCache[code];
+    if(e === null){ el.textContent = '--'; el.className = 'fund-est'; el.dataset.done = '1'; }
+    else if(e && e.gszzl !== undefined){
+      const zf = parseFloat(e.gszzl);
+      el.textContent = (zf >= 0 ? '+' : '') + zf.toFixed(2) + '%';
+      el.className = 'fund-est ' + (zf >= 0 ? 'up' : 'down');
+      el.title = '估算净值: ' + e.gsz + ' | 单位净值: ' + e.dwjz + ' | ' + (e.gztime || '');
+      el.dataset.done = '1';
+    }
+  });
+}
+
+// ============================================================
 //  FUND MODAL
 // ============================================================
 function openFundModal(fundName,sector){
-  const records = filteredData.records.filter(r=>r.fundName===fundName&&r.sector===sector);
+  fundModalRecords = filteredData.records.filter(r=>r.fundName===fundName&&r.sector===sector);
+  fundModalCode = fundModalRecords.length > 0 ? extractFundCode(fundModalRecords[0].fundRaw) : null;
+  // Reset fund data
+  if(fundNavChartInstance){ fundNavChartInstance.destroy(); fundNavChartInstance = null; }
+
   document.getElementById('modalTitle').textContent = fundName;
-  document.getElementById('modalMeta').textContent = `板块: ${sector} · 共 ${records.length} 条操作记录`;
-  document.getElementById('modalBody').innerHTML = records.map(r=>{
+  document.getElementById('modalMeta').textContent = `板块: ${sector} · 共 ${fundModalRecords.length} 条操作记录`;
+
+  // Records tab content
+  document.getElementById('modalBody').innerHTML = fundModalRecords.map(r=>{
     const tagCls = r.opType==='buy'?'buy':'sell';
     return `<tr>
       <td><strong>${escHtml(r.blogger)}</strong></td>
@@ -1414,11 +1527,196 @@ function openFundModal(fundName,sector){
       <td>${r.holdingsRaw||'--'}</td>
     </tr>`;
   }).join('');
+
+  // Reset tabs
+  document.querySelectorAll('.fund-tab').forEach((t,i) => t.classList.toggle('active', i === 0));
+  document.getElementById('fundTabRecords').style.display = '';
+  document.getElementById('fundTabNav').style.display = 'none';
+  document.getElementById('fundTabHoldings').style.display = 'none';
+  document.getElementById('fundNavLoading').style.display = '';
+  document.getElementById('fundNavChartWrap').style.display = 'none';
+  document.getElementById('fundHoldingsLoading').style.display = '';
+  document.getElementById('fundHoldingsTable').style.display = 'none';
+  document.getElementById('fundHoldingsDate').textContent = '';
+
   document.getElementById('fundModal').classList.add('active');
+
+  // Prefetch estimate for the title
+  if(fundModalCode) fetchFundEstimate(fundModalCode);
 }
 function closeModal(){
   document.getElementById('fundModal').classList.remove('active');
 }
+
+function switchFundTab(tab){
+  document.querySelectorAll('.fund-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.fund-tab[onclick="switchFundTab('${tab}')"]`).classList.add('active');
+
+  document.getElementById('fundTabRecords').style.display = tab === 'records' ? '' : 'none';
+  document.getElementById('fundTabNav').style.display = tab === 'nav' ? '' : 'none';
+  document.getElementById('fundTabHoldings').style.display = tab === 'holdings' ? '' : 'none';
+
+  if(tab === 'nav') loadFundNavData();
+  if(tab === 'holdings') loadFundHoldingsData();
+}
+
+async function loadFundNavData(){
+  if(!fundModalCode) return;
+  const el = document.getElementById('fundNavLoading');
+  const wrap = document.getElementById('fundNavChartWrap');
+
+  // Check cache first
+  if(fundDataCache[fundModalCode] && fundDataCache[fundModalCode].nav){
+    el.style.display = 'none'; wrap.style.display = '';
+    renderFundNavChart(fundDataCache[fundModalCode].nav);
+    return;
+  }
+
+  el.style.display = ''; wrap.style.display = 'none';
+
+  try {
+    const data = await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = `https://fund.eastmoney.com/pingzhongdata/${fundModalCode}.js`;
+      const timeout = setTimeout(() => { if(s.parentNode) s.parentNode.removeChild(s); reject(new Error('timeout')); }, 10000);
+      s.onload = () => {
+        clearTimeout(timeout);
+        const nav = window.Data_netWorthTrend || [];
+        const holdings = window.Data_fundSharesPositions || [];
+        const name = window.fund_name_S || '';
+        const holdingsDate = '';
+        resolve({nav, holdings, name, holdingsDate});
+        if(s.parentNode) s.parentNode.removeChild(s);
+      };
+      s.onerror = () => { clearTimeout(timeout); reject(new Error('load failed')); };
+      document.head.appendChild(s);
+    });
+
+    fundDataCache[fundModalCode] = data;
+    el.style.display = 'none'; wrap.style.display = '';
+    renderFundNavChart(data.nav);
+  } catch(e){
+    el.innerHTML = '<div style="color:var(--red)">加载失败，请稍后重试</div>';
+  }
+}
+
+function renderFundNavChart(navData){
+  if(fundNavChartInstance) fundNavChartInstance.destroy();
+  if(!navData || navData.length === 0) return;
+
+  const ctx = document.getElementById('fundNavChart').getContext('2d');
+  const labels = navData.map(d => {
+    const dt = new Date(d.x);
+    return (dt.getMonth()+1)+'/'+dt.getDate();
+  });
+  const values = navData.map(d => d.y);
+
+  fundNavChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '单位净值',
+        data: values,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,.08)',
+        borderWidth: 1.5,
+        pointRadius: 1,
+        fill: true,
+        tension: 0.2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: function(items){ return navData[items[0].dataIndex] ? new Date(navData[items[0].dataIndex].x).toLocaleDateString('zh-CN') : ''; }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 15, font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+async function loadFundHoldingsData(){
+  if(!fundModalCode) return;
+  const loadingEl = document.getElementById('fundHoldingsLoading');
+  const tableEl = document.getElementById('fundHoldingsTable');
+  const dateEl = document.getElementById('fundHoldingsDate');
+
+  // Check cache
+  if(fundDataCache[fundModalCode] && fundDataCache[fundModalCode].holdings){
+    loadingEl.style.display = 'none'; tableEl.style.display = '';
+    renderFundHoldings(fundDataCache[fundModalCode].holdings);
+    return;
+  }
+
+  // If we already loaded nav data, holdings should be there too
+  if(!fundDataCache[fundModalCode]){
+    // Load via pingzhongdata
+    try {
+      const data = await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = `https://fund.eastmoney.com/pingzhongdata/${fundModalCode}.js`;
+        const timeout = setTimeout(() => { if(s.parentNode) s.parentNode.removeChild(s); reject(new Error('timeout')); }, 10000);
+        s.onload = () => {
+          clearTimeout(timeout);
+          resolve({
+            nav: window.Data_netWorthTrend || [],
+            holdings: window.Data_fundSharesPositions || [],
+            name: window.fund_name_S || ''
+          });
+          if(s.parentNode) s.parentNode.removeChild(s);
+        };
+        s.onerror = () => { clearTimeout(timeout); reject(new Error('load failed')); };
+        document.head.appendChild(s);
+      });
+      fundDataCache[fundModalCode] = data;
+    } catch(e){
+      loadingEl.innerHTML = '<div style="color:var(--red)">加载失败，请稍后重试</div>';
+      return;
+    }
+  }
+
+  loadingEl.style.display = 'none'; tableEl.style.display = '';
+  renderFundHoldings(fundDataCache[fundModalCode].holdings);
+}
+
+function renderFundHoldings(holdings){
+  if(!holdings || holdings.length === 0){
+    document.getElementById('fundHoldingsBody').innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:24px">暂无持仓数据</td></tr>';
+    return;
+  }
+  // Sort by proportion descending (jzbl=占净值比例, fallback to zcw/zczb)
+  const getPct = h => (h.jzbl || h.zcw || h.zczb || 0);
+  // Normalize: if values are 0-1, multiply by 100
+  const sorted = [...holdings]
+    .filter(h => getPct(h) > 0)
+    .sort((a,b) => getPct(b) - getPct(a))
+    .slice(0, 10);
+
+  const samplePct = getPct(sorted[0]);
+  const scale = samplePct < 1 ? 100 : 1;
+
+  document.getElementById('fundHoldingsBody').innerHTML = sorted.map(h => {
+    const pct = getPct(h) * scale;
+    const code = h.gpdm || h.zqdm || '--';
+    const name = h.gpjc || h.zqmc || '--';
+    return `<tr>
+      <td>${escHtml(code)}</td>
+      <td><strong>${escHtml(name)}</strong></td>
+      <td>${pct.toFixed(2)}%</td>
+    </tr>`;
+  }).join('');
+}
+
 function closeSectorModal(){
   document.getElementById('sectorModal').classList.remove('active');
 }
