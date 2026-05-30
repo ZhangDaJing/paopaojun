@@ -332,10 +332,10 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
     <input type="date" id="dateStart" class="date-input" onchange="onDateInputChange()" title="起始日期">
     <span class="date-dash">—</span>
     <input type="date" id="dateEnd" class="date-input" onchange="onDateInputChange()" title="结束日期">
+    <button class="date-preset-btn" onclick="setDatePreset(3)">近3天</button>
     <button class="date-preset-btn" onclick="setDatePreset(7)">近7天</button>
     <button class="date-preset-btn" onclick="setDatePreset(30)">近30天</button>
     <button class="date-preset-btn active" onclick="setDatePreset(0)">全部</button>
-    <span style="font-size:12px;color:var(--muted);margin-left:2px" id="filterHint">显示全部记录</span>
   </div>
 
   <!-- Dashboard -->
@@ -1121,12 +1121,6 @@ function renderAll(){
   detailDisplayCount = DETAIL_PAGE_SIZE;
   applyFilters();
   updateDateInputBounds();
-  // Update filter hint
-  const total = allRecords.length;
-  const shown = filteredData.records.length;
-  const hint = document.getElementById('filterHint');
-  if(shown === total) hint.textContent = '显示全部记录';
-  else hint.textContent = `过滤后显示 ${shown} / ${total} 条记录`;
   renderSummary();
   renderSectorChart();
   renderOpChart();
@@ -1540,7 +1534,7 @@ function setDatePreset(days){
   if(days === 0){
     // All dates
     dateRange.start = null; dateRange.end = null;
-    document.querySelectorAll('.date-preset-btn')[2].classList.add('active');
+    document.querySelectorAll('.date-preset-btn')[3].classList.add('active');
   } else {
     const end = new Date();
     const start = new Date(end.getTime() - (days-1)*86400000);
