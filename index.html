@@ -620,10 +620,8 @@ async function processNameLookups(){
         fundNameCodeMap[name] = code;
         saveFundNameMap();
         console.log('🐡 基金名称匹配: '+name+' → '+code);
-        // If this code matches any rendered estimate, fetch it now
-        fetchFundEstimate(code);
-        // Re-render to update estimates
-        updateFundEstimates();
+        // Re-render top lists so the newly matched code appears as an estimate span
+        renderTopLists();
       }
     } catch(e){ /* skip */ }
     // Small delay between lookups to avoid rate limiting
@@ -1705,11 +1703,14 @@ async function loadFundNavData(){
         clearTimeout(timeout);
         // Small delay to let inline scripts populate globals
         setTimeout(() => {
+          // Collect all Data_* globals that the script populated
           const nav = window.Data_netWorthTrend || [];
-          const holdings = window.Data_fundSharesPositions || [];
+          const holdings = (window.Data_fundSharesPositions || window.Data_fundSharePositions || window.Data_fundShares || []).filter(Boolean);
+          const holdingsDate = window.Data_fundSharesPositionsDate || '';
           const name = window.fund_name_S || '';
-          console.log('🐡 NAV loaded: '+nav.length+' points, holdings: '+holdings.length+' items, fund: '+fundModalCode);
-          resolve({nav, holdings, name});
+          console.log('🐡 NAV loaded for '+fundModalCode+': '+nav.length+' points, holdings: '+holdings.length+' items');
+          console.log('🐡 Holdings keys:', holdings.length > 0 ? Object.keys(holdings[0]).join(',') : 'empty');
+          resolve({nav, holdings, name, holdingsDate});
           if(s.parentNode) s.parentNode.removeChild(s);
         }, 200);
       };
@@ -1733,15 +1734,20 @@ function renderFundNavChart(navData){
     return;
   }
 
+  // Filter to last 3 months
+  const threeMonthsAgo = Date.now() - 90 * 86400000;
+  const recent = navData.filter(d => d.x >= threeMonthsAgo);
+  const filtered = recent.length > 30 ? recent : navData.slice(-60); // fallback if too few
+
   const canvas = document.getElementById('fundNavChart');
-  if(!canvas || canvas.offsetParent === null) return; // canvas not visible
+  if(!canvas || canvas.offsetParent === null) return;
 
   const ctx = canvas.getContext('2d');
-  const labels = navData.map(d => {
+  const labels = filtered.map(d => {
     const dt = new Date(d.x);
     return (dt.getMonth()+1)+'/'+dt.getDate();
   });
-  const values = navData.map(d => d.y);
+  const values = filtered.map(d => d.y);
 
   fundNavChartInstance = new Chart(ctx, {
     type: 'line',
@@ -1812,11 +1818,11 @@ async function loadFundHoldingsData(){
       s.onload = () => {
         clearTimeout(timeout);
         setTimeout(() => {
-          resolve({
-            nav: window.Data_netWorthTrend || [],
-            holdings: window.Data_fundSharesPositions || [],
-            name: window.fund_name_S || ''
-          });
+          const nav = window.Data_netWorthTrend || [];
+          const holdings = (window.Data_fundSharesPositions || window.Data_fundSharePositions || window.Data_fundShares || window.Data_fundHoldings || []).filter(Boolean);
+          console.log('🐡 Holdings load for '+fundModalCode+': '+holdings.length+' items');
+          if(holdings.length > 0) console.log('🐡 Holdings sample keys:', Object.keys(holdings[0]).join(','));
+          resolve({nav, holdings, name: window.fund_name_S || ''});
           if(s.parentNode) s.parentNode.removeChild(s);
         }, 200);
       };
