@@ -587,8 +587,10 @@ function lookupFundCodeByName(name){
 // Look up fund code via eastmoney suggest API
 let nameLookupQueue = [];     // names waiting to be resolved
 let nameLookupActive = false;
+let nameLookupFailed = {};   // cache of names that returned no result (don't retry in same session)
+
 function enqueueFundNameLookup(name){
-  if(!name || fundNameCodeMap[name] || nameLookupQueue.includes(name)) return;
+  if(!name || fundNameCodeMap[name] || nameLookupFailed[name] || nameLookupQueue.includes(name)) return;
   nameLookupQueue.push(name);
   if(!nameLookupActive) processNameLookups();
 }
@@ -622,10 +624,14 @@ async function processNameLookups(){
       if(code && isValidFundCode(code)){
         fundNameCodeMap[name] = code;
         saveFundNameMap();
-        console.log('🐡 ✅ 匹配成功: '+name+' → '+code);
+        console.log('🐡 匹配成功: '+name+' → '+code);
         renderTopLists();
       } else if(code){
-        console.log('🐡 ❌ 非法代码: '+name+' → '+code);
+        nameLookupFailed[name] = true; // don't retry invalid codes
+        console.log('🐡 非基金代码: '+name+' → '+code);
+      } else {
+        nameLookupFailed[name] = true; // don't retry names with no results this session
+        console.log('🐡 无搜索结果: '+name);
       }
     } catch(e){ console.log('🐡 搜索异常: '+name, e); }
     if(nameLookupQueue.length > 0) await new Promise(r => setTimeout(r, 300));
@@ -1569,15 +1575,17 @@ function extractFundCodeFromName(name){
   return m2 ? m2[1] : null;
 }
 
-// Only try codes that look like real fund codes (not stock codes like 300xxx/600xxx/000xxx)
+// Try any 6-digit code — let the API tell us if it's valid (no prefix-whitelist filtering)
+// Stock codes (300xxx/600xxx/688xxx) will just 404 on fundgz, handled by timeout
 function isValidFundCode(code){
   if(!code || code.length !== 6) return false;
-  const prefix = code.substring(0, 2);
-  // Common fund code prefixes: 00,01,02,15,16,50,51,52,56,58,59
-  return ['00','01','02','15','16','50','51','52','56','58','59'].includes(prefix);
+  const prefix = code.substring(0, 1);
+  // Only skip obvious non-fund prefixes: 3 (ChiNext stocks), 6 (Shanghai stocks), 8 (STAR market)
+  if(['3','6','8'].includes(prefix)) return false;
+  return true;
 }
 
-const ESTIMATE_TIMEOUT = 6000; // 6s per code before giving up
+const ESTIMATE_TIMEOUT = 8000; // 8s per code before giving up
 
 function fetchFundEstimate(code){
   if(!code || !isValidFundCode(code)){
