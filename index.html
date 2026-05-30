@@ -1845,25 +1845,22 @@ function renderFundHoldings(holdings){
     document.getElementById('fundHoldingsBody').innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:24px">暂无持仓数据</td></tr>';
     return;
   }
-  // Sort by proportion descending (jzbl=占净值比例, fallback to zcw/zczb)
-  const getPct = h => (h.jzbl || h.zcw || h.zczb || 0);
-  // Normalize: if values are 0-1, multiply by 100
-  const sorted = [...holdings]
-    .filter(h => getPct(h) > 0)
-    .sort((a,b) => getPct(b) - getPct(a))
-    .slice(0, 10);
+  // Holdings may be array-of-objects or array-of-arrays from eastmoney
+  const normalize = h => {
+    if(Array.isArray(h)){ return {code: h[0]||'--', name: h[1]||'--', pct: parseFloat(h[2])||0}; }
+    else { return {code: h.gpdm || h.zqdm || '--', name: h.gpjc || h.zqmc || '--', pct: parseFloat(h.jzbl || h.zcw || h.zczb) || 0}; }
+  };
+  const normalized = holdings.map(normalize).filter(h => h.pct > 0);
+  const sorted = normalized.sort((a,b) => b.pct - a.pct).slice(0, 10);
 
-  const samplePct = getPct(sorted[0]);
-  const scale = samplePct < 1 ? 100 : 1;
+  // Normalize: if values are 0-1, multiply by 100
+  const scale = sorted.length > 0 && sorted[0].pct < 1 ? 100 : 1;
 
   document.getElementById('fundHoldingsBody').innerHTML = sorted.map(h => {
-    const pct = getPct(h) * scale;
-    const code = h.gpdm || h.zqdm || '--';
-    const name = h.gpjc || h.zqmc || '--';
     return `<tr>
-      <td>${escHtml(code)}</td>
-      <td><strong>${escHtml(name)}</strong></td>
-      <td>${pct.toFixed(2)}%</td>
+      <td>${escHtml(h.code)}</td>
+      <td><strong>${escHtml(h.name)}</strong></td>
+      <td>${(h.pct * scale).toFixed(2)}%</td>
     </tr>`;
   }).join('');
 }
