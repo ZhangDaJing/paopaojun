@@ -56,54 +56,20 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
 .filter-btn .badge-count{display:inline-block;background:var(--border);color:var(--muted);font-size:11px;padding:0 6px;border-radius:8px;font-weight:600}
 .filter-btn.active .badge-count{background:var(--blue);color:#fff}
 
-/* ====== Floating Date Panel ====== */
-#dateToggle{
-  position:fixed; right:0; top:50%; transform:translateY(-50%);
-  width:32px; height:56px; background:var(--card); border:1px solid var(--border);
-  border-right:none; border-radius:8px 0 0 8px; cursor:pointer; z-index:99;
-  display:none; align-items:center; justify-content:center;
-  font-size:16px; box-shadow:var(--shadow); transition:.2s;
+/* ====== Filter Bar Date Range ====== */
+.filter-sep{width:1px;height:18px;background:var(--border);margin:0 4px}
+.date-label{font-size:13px;font-weight:600;color:var(--text)}
+.date-input{
+  padding:4px 8px;border:1px solid var(--border);border-radius:6px;
+  font-size:13px;background:white;color:var(--text);width:auto;min-width:0;
 }
-#dateToggle:hover{background:#f0f2f5;width:36px}
-#datePanel{
-  position:fixed; right:-280px; top:50%; transform:translateY(-50%);
-  width:260px; background:var(--card); border:1px solid var(--border);
-  border-right:none; border-radius:10px 0 0 10px; z-index:98;
-  box-shadow:-4px 0 20px rgba(0,0,0,.08); transition:right .28s ease;
-  overflow:hidden;
+.date-dash{font-size:13px;color:var(--muted);padding:0 2px}
+.date-preset-btn{
+  padding:4px 12px;border:1px solid var(--border);border-radius:14px;
+  background:transparent;font-size:12px;cursor:pointer;color:var(--muted);transition:.2s;
 }
-#datePanel.open{right:0}
-.date-panel-header{
-  padding:14px 16px 10px; font-size:14px; font-weight:700;
-  display:flex; align-items:center; justify-content:space-between;
-  border-bottom:1px solid var(--border);
-}
-.date-panel-header .close-btn{background:none;border:none;font-size:16px;cursor:pointer;color:var(--muted);padding:2px 6px}
-.date-panel-header .close-btn:hover{color:var(--text)}
-.date-panel-body{padding:8px 12px 12px; max-height:50vh; overflow-y:auto}
-.date-all-btn{display:block;width:100%;padding:7px;border:none;border-radius:6px;background:transparent;font-size:13px;cursor:pointer;color:var(--text);text-align:center;margin-bottom:8px;transition:.15s}
-.date-all-btn:hover{background:#f3f4f6}
-.date-all-btn.active{background:#1e3a5f;color:#fff;font-weight:600}
-.date-all-btn .count{font-size:11px;opacity:.65}
-.date-all-btn.active .count{opacity:.9}
-
-/* Calendar grid */
-.cal-header{display:flex;align-items:center;justify-content:space-between;padding:2px 0 8px}
-.cal-header .cal-title{font-size:14px;font-weight:600}
-.cal-nav{background:none;border:none;cursor:pointer;font-size:14px;color:var(--text);padding:2px 10px;border-radius:4px;font-weight:600}
-.cal-nav:hover{background:#f3f4f6}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
-.cal-wd{text-align:center;font-size:10px;color:var(--muted);padding:4px 0 6px;font-weight:600}
-.cal-day{text-align:center;padding:6px 0;border-radius:6px;font-size:13px;cursor:pointer;position:relative;line-height:1.2;transition:.1s}
-.cal-day:hover{background:#f3f4f6}
-.cal-day.no-data{color:#d1d5db;cursor:default}
-.cal-day.no-data:hover{background:transparent}
-.cal-day.has-data{font-weight:600}
-.cal-day.active{background:#1e3a5f;color:#fff}
-.cal-day.active:hover{background:#1e3a5f}
-.cal-day.today{outline:2px solid var(--blue);outline-offset:-2px}
-.cal-day .cal-dot{width:4px;height:4px;border-radius:50%;background:var(--green);margin:2px auto 0}
-.cal-day.active .cal-dot{background:#fff}
+.date-preset-btn:hover{border-color:var(--blue);color:var(--blue)}
+.date-preset-btn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
 
 /* ====== Summary Cards ====== */
 .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
@@ -238,6 +204,9 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
   .chart-card{padding:14px}
   .filter-bar{padding:10px 12px}
   .filter-btn{padding:5px 10px;font-size:12px}
+  .date-input{font-size:12px;padding:3px 6px}
+  .date-preset-btn{padding:3px 10px;font-size:11px}
+  .date-label{font-size:12px}
   .top-card{padding:14px}
   .top-item{padding:8px 0}
   .top-item .stats .num{font-size:14px}
@@ -250,8 +219,6 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
   .container{padding:16px 12px}
   .loading{padding:30px}
   .section-title{font-size:15px}
-  #datePanel{width:240px}
-  .date-panel-body{max-height:40vh}
   .data-table-wrap .table-toolbar input{min-width:120px}
   .data-table-wrap th:nth-child(n+6),.data-table-wrap td:nth-child(n+6){display:none}
   .sector-table-wrap th:nth-child(6),.sector-table-wrap td:nth-child(6){display:none}
@@ -272,6 +239,11 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
   .filter-bar{padding:8px 10px;gap:6px}
   .filter-btn{padding:5px 8px;font-size:11px;gap:3px}
   .filter-btn .badge-count{font-size:10px;padding:0 5px}
+  .date-input{font-size:11px;padding:3px 4px;max-width:100px}
+  .date-preset-btn{padding:3px 8px;font-size:10px}
+  .date-label{font-size:11px}
+  .date-dash{padding:0 1px}
+  .filter-sep{margin:0 2px}
   .top-card{padding:12px}
   .top-item .stats .num{font-size:13px}
   .top-item .info .name{font-size:13px}
@@ -283,9 +255,6 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
   .modal{padding:14px;max-height:90vh}
   .modal h2{font-size:15px}
   .container{padding:12px 8px}
-  #datePanel{width:220px}
-  #dateToggle{width:28px;height:48px;font-size:14px}
-  .cal-day{font-size:12px;padding:5px 0}
   .section-title{font-size:14px}
   .tag{font-size:10px;padding:1px 8px}
   .sort-btn{font-size:11px;padding:2px 10px}
@@ -304,8 +273,9 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
 
 /* Very small phones */
 @media(max-width:380px){
-  #datePanel{width:200px}
-  #dateToggle{width:24px;height:40px;font-size:12px}
+  .date-input{font-size:11px;padding:3px 5px}
+  .date-preset-btn{padding:3px 8px;font-size:11px}
+  .filter-sep{display:none}
 }
 
 /* ====== Tooltip ====== */
@@ -350,14 +320,22 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
 
   <!-- Global Filters -->
   <div class="filter-bar" id="filterBar" style="display:none">
-    <span class="label">🔍 全局过滤：</span>
+    <span class="label">🔍 过滤：</span>
     <button class="filter-btn" data-filter="dingtou" onclick="toggleFilter('dingtou')">
-      过滤定投 <span class="badge-count" id="dingtouCount">0</span>
+      定投 <span class="badge-count" id="dingtouCount">0</span>
     </button>
     <button class="filter-btn" data-filter="uncategorized" onclick="toggleFilter('uncategorized')">
-      过滤未分类 <span class="badge-count" id="uncategorizedCount">0</span>
+      未分类 <span class="badge-count" id="uncategorizedCount">0</span>
     </button>
-    <span style="font-size:12px;color:var(--muted);margin-left:4px" id="filterHint">显示全部记录</span>
+    <span class="filter-sep"></span>
+    <span class="date-label">日期：</span>
+    <input type="date" id="dateStart" class="date-input" onchange="onDateInputChange()" title="起始日期">
+    <span class="date-dash">—</span>
+    <input type="date" id="dateEnd" class="date-input" onchange="onDateInputChange()" title="结束日期">
+    <button class="date-preset-btn" onclick="setDatePreset(7)">近7天</button>
+    <button class="date-preset-btn" onclick="setDatePreset(30)">近30天</button>
+    <button class="date-preset-btn active" onclick="setDatePreset(0)">全部</button>
+    <span style="font-size:12px;color:var(--muted);margin-left:2px" id="filterHint">显示全部记录</span>
   </div>
 
   <!-- Dashboard -->
@@ -516,16 +494,6 @@ header .date-badge{background:rgba(255,255,255,.12);padding:4px 12px;border-radi
   </div>
 </div>
 
-<!-- Floating Date Panel -->
-<div id="dateToggle" title="选择日期" onclick="toggleDatePanel()">📅</div>
-<div id="datePanel">
-  <div class="date-panel-header">
-    <span>📅 选择日期</span>
-    <button class="close-btn" onclick="toggleDatePanel()">✕</button>
-  </div>
-  <div class="date-panel-body" id="datePanelBody"></div>
-</div>
-
 <script>
 // ============================================================
 //  GLOBALS
@@ -541,7 +509,7 @@ const DEFAULT_SUPABASE_KEY = 'sb_publishable_CXVgwnfpCfVrpMSkgWiX4Q_B4WkhZ72';
 let sectorModalFunds = [];
 let sectorModalSector = '';
 let sectorModalSort = {key:'total',dir:-1};
-let selectedDate = null;
+const dateRange = {start: null, end: null};
 let recordsCache = {};
 let availableDates = [];
 let dateCounts = {};
@@ -559,7 +527,8 @@ function applyFilters(){
   let records = allRecords;
   if(hideDingTou) records = records.filter(r => r.operation !== '定');
   if(hideUncategorized) records = records.filter(r => r.sector !== '未分类');
-  if(selectedDate) records = records.filter(r => r.date === selectedDate);
+  if(dateRange.start) records = records.filter(r => r.date >= dateRange.start);
+  if(dateRange.end) records = records.filter(r => r.date <= dateRange.end);
   // Recompute sector stats from filtered records
   const smap = {};
   records.forEach(r => {
@@ -919,8 +888,9 @@ async function handleFiles(files){
       allRecords.forEach(r => { if(r.date){ if(!byDate[r.date]) byDate[r.date]=[]; byDate[r.date].push(r); }});
       Object.keys(byDate).forEach(d => { recordsCache[d] = byDate[d]; });
     }
-    // Reset selectedDate so rebuildAvailableDates picks the latest
-    selectedDate = null;
+    // Reset date range to show all
+    dateRange.start = null; dateRange.end = null;
+    syncDateInputs();
     renderAll();
     // Update local cache for instant load on next refresh
     const todayStr = new Date().toISOString().slice(0,10);
@@ -1150,7 +1120,7 @@ function getFundStats(records = allRecords){
 function renderAll(){
   detailDisplayCount = DETAIL_PAGE_SIZE;
   applyFilters();
-  rebuildAvailableDates();
+  // Update available dates for quick-preset info
   // Update filter hint
   const total = allRecords.length;
   const shown = filteredData.records.length;
@@ -1562,135 +1532,40 @@ function formatDateLabel(dateStr){
   const wd = weekdays[d.getDay()];
   return `${month}月${day}日 周${wd}`;
 }
-let calYear = 2026;
-let calMonth = 4; // 0-indexed
-
-function rebuildAvailableDates(){
-  const dates = availableDates.length > 0 ? availableDates : [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort();
-  if(dates.length > 0 && selectedDate === null){
-    selectedDate = dates[dates.length - 1];
-  }
-  if(selectedDate){
-    const d = new Date(selectedDate + 'T00:00:00');
-    calYear = d.getFullYear();
-    calMonth = d.getMonth();
-  } else if(dates.length > 0){
-    const d = new Date(dates[dates.length - 1] + 'T00:00:00');
-    calYear = d.getFullYear();
-    calMonth = d.getMonth();
-  }
-  renderDatePanel(dates);
-}
-
-function renderDatePanel(dates){
-  const toggle = document.getElementById('dateToggle');
-  const body = document.getElementById('datePanelBody');
-  if(!dates || dates.length === 0){
-    toggle.style.display = 'none';
-    return;
-  }
-  toggle.style.display = 'flex';
-
-  // Use global dateCounts (from Supabase), fall back to allRecords
-  const counts = Object.keys(dateCounts).length > 0 ? dateCounts : {};
-  const totalCount = Object.values(counts).reduce((a,b)=>a+b, 0) || allRecords.length;
-  const dateSet = new Set(dates);
-
-  let html = `<button class="date-all-btn ${selectedDate===null?'active':''}" onclick="setDate(null)">📋 全部日期 <span class="count">${totalCount}条</span></button>`;
-  html += renderCalendar(dateSet, counts);
-  body.innerHTML = html;
-}
-
-function renderCalendar(dateSet, counts){
-  const monthNames = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
-  const weekdays = ['日','一','二','三','四','五','六'];
-  const today = new Date().toISOString().slice(0,10);
-  const firstDay = new Date(calYear, calMonth, 1).getDay();
-  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-
-  let h = `<div class="cal-header">
-    <button class="cal-nav" onclick="calPrevMonth(event)">◀</button>
-    <span class="cal-title">${calYear}年${monthNames[calMonth]}</span>
-    <button class="cal-nav" onclick="calNextMonth(event)">▶</button>
-  </div>`;
-  h += '<div class="cal-grid">';
-  // Weekday headers
-  weekdays.forEach(w => { h += `<div class="cal-wd">${w}</div>`; });
-  // Empty cells before first day
-  for(let i=0; i<firstDay; i++) h += '<div></div>';
-  // Day cells
-  for(let d=1; d<=daysInMonth; d++){
-    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const hasData = dateSet.has(dateStr);
-    const isActive = selectedDate === dateStr;
-    const isToday = dateStr === today;
-    let cls = 'cal-day';
-    if(isActive) cls += ' active';
-    if(isToday) cls += ' today';
-    if(hasData) cls += ' has-data';
-    else cls += ' no-data';
-
-    if(hasData){
-      h += `<div class="${cls}" onclick="setDate('${dateStr}')">${d}`;
-      if(counts[dateStr]) h += `<div class="cal-dot"></div>`;
-      h += `</div>`;
-    } else {
-      h += `<div class="${cls}">${d}</div>`;
-    }
-  }
-  h += '</div>';
-  return h;
-}
-
-function calPrevMonth(e){
-  if(e) e.stopPropagation();
-  calMonth--;
-  if(calMonth < 0){ calMonth = 11; calYear--; }
-  renderDatePanel(availableDates.length > 0 ? availableDates : [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort());
-}
-function calNextMonth(e){
-  if(e) e.stopPropagation();
-  calMonth++;
-  if(calMonth > 11){ calMonth = 0; calYear++; }
-  renderDatePanel(availableDates.length > 0 ? availableDates : [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort());
-}
-
-function toggleDatePanel(){
-  document.getElementById('datePanel').classList.toggle('open');
-}
-function closeDatePanel(){
-  document.getElementById('datePanel').classList.remove('open');
-}
-async function setDate(dateStr){
-  selectedDate = dateStr;
-  if(dateStr) location.hash = '#'+dateStr;
-  else location.hash = '';
-  if(dateStr){
-    const d = new Date(dateStr + 'T00:00:00');
-    calYear = d.getFullYear();
-    calMonth = d.getMonth();
-  }
-  closeDatePanel();
-  if(!dateStr){
-    // 全部日期 — load all data
-    await loadAllFromSupabase();
-  } else if(recordsCache[dateStr]){
-    allRecords = recordsCache[dateStr];
-    renderAll();
+// ============================================================
+//  DATE RANGE FILTER
+// ============================================================
+function setDatePreset(days){
+  document.querySelectorAll('.date-preset-btn').forEach(b => b.classList.remove('active'));
+  if(days === 0){
+    // All dates
+    dateRange.start = null; dateRange.end = null;
+    document.querySelectorAll('.date-preset-btn')[2].classList.add('active');
   } else {
-    await loadFromSupabase(dateStr);
+    const end = new Date();
+    const start = new Date(end.getTime() - (days-1)*86400000);
+    dateRange.start = start.toISOString().slice(0,10);
+    dateRange.end = end.toISOString().slice(0,10);
+    document.querySelector(`.date-preset-btn[onclick="setDatePreset(${days})"]`).classList.add('active');
   }
+  syncDateInputs();
+  renderAll();
 }
-// Click outside to close the date panel
-document.addEventListener('click', function(e){
-  const panel = document.getElementById('datePanel');
-  const toggle = document.getElementById('dateToggle');
-  if(panel.classList.contains('open') &&
-     !panel.contains(e.target) &&
-     !toggle.contains(e.target)){
-    closeDatePanel();
-  }
-});
+
+function onDateInputChange(){
+  const start = document.getElementById('dateStart').value;
+  const end = document.getElementById('dateEnd').value;
+  document.querySelectorAll('.date-preset-btn').forEach(b => b.classList.remove('active'));
+  dateRange.start = start || null;
+  dateRange.end = end || null;
+  if(!start && !end) document.querySelectorAll('.date-preset-btn')[2].classList.add('active');
+  renderAll();
+}
+
+function syncDateInputs(){
+  document.getElementById('dateStart').value = dateRange.start || '';
+  document.getElementById('dateEnd').value = dateRange.end || '';
+}
 
 // Fix chart resize on window resize (responsive charts)
 window.addEventListener('resize', function(){
@@ -1751,7 +1626,6 @@ function saveLocalCache(date, records){
       supabaseConnected = true;
       updateSupabaseStatus();
 
-      selectedDate = hitDate;
       allRecords = result.data.map(r=>({
         date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
         fundRaw: r.fund_raw, fundName: r.fund_name, fundEst: r.fund_est,
@@ -1772,11 +1646,13 @@ function saveLocalCache(date, records){
       });
       allSectors = Object.values(smap);
 
-      // Show dashboard
+      // Show dashboard (dateRange stays all — show everything we have)
+      dateRange.start = null; dateRange.end = null;
+      syncDateInputs();
       loading.classList.remove('active');
       dashboard.style.display = 'block';
       document.getElementById('fileInput').value = '';
-      document.getElementById('importStatus').textContent = '☁️ 云端数据 · '+formatDateLabel(hitDate);
+      document.getElementById('importStatus').textContent = '☁️ 云端数据 · '+formatDateLabel(hitDate)+' · '+allRecords.length+'条';
       document.getElementById('importStatus').style.display = 'inline';
       document.getElementById('importBtn').textContent = '📂 重新导入';
       document.getElementById('filterBar').style.display='flex';
@@ -1787,9 +1663,44 @@ function saveLocalCache(date, records){
       // Cache for next visit
       saveLocalCache(hitDate, allRecords);
 
-      // Background: fetch full date list for calendar (don't await — let it run async)
-      fetchAvailableDates().then(() => {
-        if(availableDates.length > 0) renderDatePanel(availableDates);
+      // Background: fetch ALL dates and load remaining data
+      fetchAvailableDates().then(async () => {
+        const uncached = availableDates.filter(d => d !== hitDate && !recordsCache[d]);
+        if(uncached.length > 0){
+          try {
+            const data = await fetchAllFromSupabase('*', q => q.order('id', { ascending: true }));
+            if(data && data.length > 0){
+              // Group by date into cache
+              data.forEach(r => {
+                if(!recordsCache[r.date]) recordsCache[r.date] = [];
+                recordsCache[r.date].push(r);
+              });
+              // Expand allRecords to include everything
+              allRecords = data.map(r=>({
+                date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
+                fundRaw: r.fund_raw, fundName: r.fund_name, fundEst: r.fund_est,
+                amountRaw: r.amount_raw, amount: r.amount, amountPct: r.amount_pct,
+                blogger: r.blogger, monthReturn: r.month_return, yearReturn: r.year_return,
+                holdingsRaw: r.holdings_raw, holdingsNum: r.holdings_num, style: r.style
+              }));
+              // Rebuild sectors
+              const smap2 = {};
+              allRecords.forEach(r => {
+                if(!smap2[r.sector]) smap2[r.sector]={name:r.sector,records:[],actualBuyCount:0,actualSellCount:0,actualBuyAmount:0,actualSellAmount:0,netFlow:0};
+                const s=smap2[r.sector]; s.records.push(r);
+                if(r.opType==='buy'){s.actualBuyCount++;s.actualBuyAmount+=r.amount;}
+                else{s.actualSellCount++;s.actualSellAmount+=r.amount;}
+                s.netFlow=s.actualBuyAmount-s.actualSellAmount;
+              });
+              allSectors = Object.values(smap2);
+              document.getElementById('importStatus').textContent = '☁️ 云端数据 · 全部 · '+allRecords.length+'条';
+              document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
+              document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
+              renderAll();
+              saveLocalCache('all', allRecords);
+            }
+          } catch(e){ console.error('Background data load failed:', e); }
+        }
       });
 
       console.log('🐡 已加载 '+hitDate+' 数据 ('+allRecords.length+' 条)');
@@ -1805,7 +1716,8 @@ function saveLocalCache(date, records){
       await fetchAvailableDates();
       if (availableDates.length > 0) {
         const latest = availableDates[availableDates.length - 1];
-        selectedDate = latest;
+        dateRange.start = null; dateRange.end = null;
+        syncDateInputs();
         const ok = await loadFromSupabase(latest);
         if (!ok) { await loadAllFromSupabase(); }
         saveLocalCache(latest, allRecords);
@@ -1822,7 +1734,8 @@ function saveLocalCache(date, records){
   // ===== Step 2: Supabase unavailable — try local cache =====
   const cached = getLocalCache();
   if (cached) {
-    selectedDate = cached.date;
+    dateRange.start = null; dateRange.end = null;
+    syncDateInputs();
     allRecords = cached.records;
     const smap = {};
     allRecords.forEach(r => {
@@ -1850,22 +1763,6 @@ function saveLocalCache(date, records){
   dashboard.style.display = 'block';
   console.log('🐡 泡泡菌操作分析 · 请上传 Excel 文件开始分析');
 })();
-// Listen for hash changes (browser back/forward navigation)
-window.addEventListener('hashchange', function(){
-  const hashDate = location.hash ? decodeURIComponent(location.hash.slice(1)) : null;
-  if(hashDate === null || hashDate === ''){
-    selectedDate = null;
-    if(supabaseConnected) loadAllFromSupabase();
-  } else if(availableDates.includes(hashDate)){
-    selectedDate = hashDate;
-    if(supabaseConnected && recordsCache[hashDate]){
-      allRecords = recordsCache[hashDate];
-      renderAll();
-    } else if(supabaseConnected){
-      loadFromSupabase(hashDate);
-    }
-  }
-});
 </script>
 </body>
 </html>
