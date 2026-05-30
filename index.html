@@ -560,6 +560,78 @@ let fundModalCode = null;     // current fund code in modal
 let fundNavChartInstance = null;
 let fundModalRecords = [];
 
+// Fund name → code mapping (persisted in localStorage)
+let fundNameCodeMap = {};     // { "创业板ETF联接C": "001592", ... }
+const FUND_MAP_KEY = 'paopao_fund_codes';
+
+function loadFundNameMap(){
+  try {
+    const raw = localStorage.getItem(FUND_MAP_KEY);
+    if(raw) fundNameCodeMap = JSON.parse(raw);
+  } catch(e){ fundNameCodeMap = {}; }
+}
+function saveFundNameMap(){
+  try { localStorage.setItem(FUND_MAP_KEY, JSON.stringify(fundNameCodeMap)); } catch(e){}
+}
+function lookupFundCodeByName(name){
+  if(!name) return null;
+  // Direct match
+  if(fundNameCodeMap[name]) return fundNameCodeMap[name];
+  // Try partial match: check if name contains a known fund name
+  for(const key of Object.keys(fundNameCodeMap)){
+    if(name.includes(key) || key.includes(name)) return fundNameCodeMap[key];
+  }
+  return null;
+}
+
+// Look up fund code via eastmoney suggest API
+let nameLookupQueue = [];     // names waiting to be resolved
+let nameLookupActive = false;
+function enqueueFundNameLookup(name){
+  if(!name || fundNameCodeMap[name] || nameLookupQueue.includes(name)) return;
+  nameLookupQueue.push(name);
+  if(!nameLookupActive) processNameLookups();
+}
+
+async function processNameLookups(){
+  nameLookupActive = true;
+  while(nameLookupQueue.length > 0){
+    const name = nameLookupQueue.shift();
+    try {
+      const code = await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        const cb = 'fcb' + Date.now();
+        window[cb] = function(data){
+          delete window[cb];
+          if(s.parentNode) s.parentNode.removeChild(s);
+          if(data && data.Datas && data.Datas.length > 0){
+            // Return the first match
+            resolve(data.Datas[0].CODE);
+          } else {
+            resolve(null);
+          }
+        };
+        s.src = `https://fundsuggest.eastmoney.com/fundsearch/api/FundSearchAPI.ashx?callback=${cb}&m=1&key=${encodeURIComponent(name)}`;
+        s.onerror = () => { delete window[cb]; if(s.parentNode) s.parentNode.removeChild(s); resolve(null); };
+        document.head.appendChild(s);
+        setTimeout(() => { if(window[cb]){ delete window[cb]; if(s.parentNode) s.parentNode.removeChild(s); resolve(null); } }, 5000);
+      });
+      if(code){
+        fundNameCodeMap[name] = code;
+        saveFundNameMap();
+        console.log('🐡 基金名称匹配: '+name+' → '+code);
+        // If this code matches any rendered estimate, fetch it now
+        fetchFundEstimate(code);
+        // Re-render to update estimates
+        updateFundEstimates();
+      }
+    } catch(e){ /* skip */ }
+    // Small delay between lookups to avoid rate limiting
+    if(nameLookupQueue.length > 0) await new Promise(r => setTimeout(r, 300));
+  }
+  nameLookupActive = false;
+}
+
 // JSONP queues
 let jsonpgzQueue = [];        // pending estimate callbacks
 window.jsonpgz = function(data){
@@ -1162,7 +1234,7 @@ function getFundStats(records = allRecords){
     f.consensusSellScore = sellBloggerCount*3 + f.sells.length*2 + Math.log(sellAmt+1)*0.5;
     // Sentiment: 1=all buy, -1=all sell
     f.sentiment = totalBloggers>0 ? (buyBloggerCount-sellBloggerCount)/totalBloggers : 0;
-    f.fundCode = extractFundCode(f.fundRaw) || extractFundCodeFromName(f.fundName);
+    f.fundCode = extractFundCode(f.fundRaw) || extractFundCodeFromName(f.fundName) || lookupFundCodeByName(f.fundName);
     return f;
   });
 }
@@ -1352,6 +1424,10 @@ function renderTopLists(){
   const codes = [...new Set([...topBuys,...topSells].map(f=>f.fundCode).filter(Boolean))];
   codes.forEach(code => {
     fetchFundEstimate(code);
+  });
+  // Trigger name→code lookups for funds without codes
+  [...topBuys,...topSells].forEach(f => {
+    if(!f.fundCode && f.fundName) enqueueFundNameLookup(f.fundName);
   });
   // Apply cached + start polling for late-arriving JSONP callbacks
   updateFundEstimates();
@@ -1546,7 +1622,7 @@ function openFundModal(fundName,sector){
   fundModalRecords = filteredData.records.filter(r=>r.fundName===fundName&&r.sector===sector);
   fundModalCode = null;
   if(fundModalRecords.length > 0){
-    fundModalCode = extractFundCode(fundModalRecords[0].fundRaw) || extractFundCodeFromName(fundName) || extractFundCodeFromName(fundModalRecords[0].fundRaw);
+    fundModalCode = extractFundCode(fundModalRecords[0].fundRaw) || extractFundCodeFromName(fundName) || lookupFundCodeByName(fundName);
   }
   // Reset fund data
   if(fundNavChartInstance){ fundNavChartInstance.destroy(); fundNavChartInstance = null; }
@@ -1978,6 +2054,8 @@ function saveLocalCache(date, records){
 
 // Auto-connect Supabase with saved config or hardcoded defaults
 (async function initApp(){
+  // Restore fund name→code mapping from localStorage
+  loadFundNameMap();
   // Loading is already showing from the HTML "active" class
   dashboard.style.display = 'none';
 
