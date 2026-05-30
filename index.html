@@ -1120,7 +1120,7 @@ function getFundStats(records = allRecords){
 function renderAll(){
   detailDisplayCount = DETAIL_PAGE_SIZE;
   applyFilters();
-  // Update available dates for quick-preset info
+  updateDateInputBounds();
   // Update filter hint
   const total = allRecords.length;
   const shown = filteredData.records.length;
@@ -1567,6 +1567,23 @@ function syncDateInputs(){
   document.getElementById('dateEnd').value = dateRange.end || '';
 }
 
+function updateDateInputBounds(){
+  const dates = availableDates.length > 0 ? availableDates : [...new Set(allRecords.map(r=>r.date).filter(Boolean))].sort();
+  const startEl = document.getElementById('dateStart');
+  const endEl = document.getElementById('dateEnd');
+  if(dates.length > 0){
+    startEl.min = dates[0];
+    startEl.max = dates[dates.length - 1];
+    endEl.min = dates[0];
+    endEl.max = dates[dates.length - 1];
+  }
+  startEl.onfocus = function(){
+    if(!dateRange.start && !dateRange.end && dates.length > 0){
+      this.value = dates[dates.length - 1];
+    }
+  };
+}
+
 // Fix chart resize on window resize (responsive charts)
 window.addEventListener('resize', function(){
   if(sectorChartInstance) sectorChartInstance.resize();
@@ -1663,43 +1680,20 @@ function saveLocalCache(date, records){
       // Cache for next visit
       saveLocalCache(hitDate, allRecords);
 
-      // Background: fetch ALL dates and load remaining data
+      // Background: silently cache ALL dates (don't re-render — stay on today)
       fetchAvailableDates().then(async () => {
         const uncached = availableDates.filter(d => d !== hitDate && !recordsCache[d]);
         if(uncached.length > 0){
           try {
             const data = await fetchAllFromSupabase('*', q => q.order('id', { ascending: true }));
             if(data && data.length > 0){
-              // Group by date into cache
               data.forEach(r => {
                 if(!recordsCache[r.date]) recordsCache[r.date] = [];
                 recordsCache[r.date].push(r);
               });
-              // Expand allRecords to include everything
-              allRecords = data.map(r=>({
-                date: r.date, sector: r.sector, operation: r.operation, opType: r.op_type, opLabel: r.op_label,
-                fundRaw: r.fund_raw, fundName: r.fund_name, fundEst: r.fund_est,
-                amountRaw: r.amount_raw, amount: r.amount, amountPct: r.amount_pct,
-                blogger: r.blogger, monthReturn: r.month_return, yearReturn: r.year_return,
-                holdingsRaw: r.holdings_raw, holdingsNum: r.holdings_num, style: r.style
-              }));
-              // Rebuild sectors
-              const smap2 = {};
-              allRecords.forEach(r => {
-                if(!smap2[r.sector]) smap2[r.sector]={name:r.sector,records:[],actualBuyCount:0,actualSellCount:0,actualBuyAmount:0,actualSellAmount:0,netFlow:0};
-                const s=smap2[r.sector]; s.records.push(r);
-                if(r.opType==='buy'){s.actualBuyCount++;s.actualBuyAmount+=r.amount;}
-                else{s.actualSellCount++;s.actualSellAmount+=r.amount;}
-                s.netFlow=s.actualBuyAmount-s.actualSellAmount;
-              });
-              allSectors = Object.values(smap2);
-              document.getElementById('importStatus').textContent = '☁️ 云端数据 · 全部 · '+allRecords.length+'条';
-              document.getElementById('dingtouCount').textContent = allRecords.filter(r=>r.operation==='定').length;
-              document.getElementById('uncategorizedCount').textContent = allRecords.filter(r=>r.sector==='未分类').length;
-              renderAll();
-              saveLocalCache('all', allRecords);
+              console.log('🐡 后台已缓存全部 '+availableDates.length+' 天数据');
             }
-          } catch(e){ console.error('Background data load failed:', e); }
+          } catch(e){ console.error('Background cache failed:', e); }
         }
       });
 
